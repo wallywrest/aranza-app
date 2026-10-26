@@ -1,9 +1,9 @@
-
 import os
 import logging
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
+from typing import Optional
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -13,40 +13,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from groq import AsyncGroq
 
-
 # ============================================================
 # 1. CONFIGURACIÓN GENERAL
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-
 load_dotenv(BASE_DIR / ".env")
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aranza")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = (
-    os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-    .strip()
-    .strip('"')
-    .strip("'")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip().strip('"').strip("'")
+_database_path = Path(os.getenv("ARANZA_DB_PATH", str(BASE_DIR / "aranza.sqlite3")))
+DATABASE_PATH = str(
+    _database_path if _database_path.is_absolute() else (BASE_DIR / _database_path).resolve()
 )
 
-DATABASE_PATH = os.getenv(
-    "ARANZA_DB_PATH",
-    str(BASE_DIR / "aranza.sqlite3")
-)
-
-HISTORY_LIMIT = max(
-    1, int(os.getenv("ARANZA_HISTORY_LIMIT", "16"))
-)
-MAX_TOKENS = max(
-    1, int(os.getenv("ARANZA_MAX_TOKENS", "1200"))
-)
-TEMPERATURE = float(
-    os.getenv("ARANZA_TEMPERATURE", "0.75")
-)
+HISTORY_LIMIT = int(os.getenv("ARANZA_HISTORY_LIMIT", "16"))
+MAX_TOKENS = int(os.getenv("ARANZA_MAX_TOKENS", "1200"))
+TEMPERATURE = float(os.getenv("ARANZA_TEMPERATURE", "0.75"))
 
 ALLOWED_ORIGINS = [
     origin.strip()
@@ -57,12 +42,19 @@ ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
-client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+client = (
+    AsyncGroq(api_key=GROQ_API_KEY)
+    if GROQ_API_KEY
+    else None
+)
 
 
 # ============================================================
 # 2. PERFIL DE REFERENCIA DE HANA
 # ============================================================
+# El perfil distingue observaciones del chat y recuerdos de Melvis.
+# No representa la personalidad completa de Hana ni permite conocer
+# lo que ella pensaría en situaciones que no aparecen en el historial.
 
 PERFIL_HANA = {
     "comunicacion_observada": [
@@ -272,9 +264,10 @@ def obtener_historial(conversation_id):
             LIMIT ?
         """, (conversation_id, HISTORY_LIMIT)).fetchall()
 
-    return [dict(fila) for fila in reversed(filas)]
-
-
+    return [
+        dict(fila)
+        for fila in reversed(filas)
+    ]
 def obtener_historial_completo(conversation_id):
     with conectar_db() as conn:
         filas = conn.execute("""
@@ -285,7 +278,6 @@ def obtener_historial_completo(conversation_id):
         """, (conversation_id,)).fetchall()
 
     return [dict(fila) for fila in filas]
-
 
 def guardar_mensaje(conversation_id, role, content):
     with conectar_db() as conn:
@@ -395,7 +387,7 @@ class ChatRequest(BaseModel):
         max_length=8000
     )
 
-    conversation_id: str | None = Field(
+    conversation_id: Optional[str] = Field(
         default=None,
         min_length=1,
         max_length=100
@@ -421,19 +413,18 @@ class MemoryRequest(BaseModel):
 
 @app.get("/")
 async def mostrar_pagina_principal():
-    archivo_html = BASE_DIR / "index.html"
-
-    if not archivo_html.is_file():
+    pagina = BASE_DIR / "index.html"
+    if not pagina.is_file():
         raise HTTPException(
             status_code=404,
             detail="No se encontró index.html junto a main.py."
         )
-
-    return FileResponse(str(archivo_html))
+    return FileResponse(str(pagina))
 
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
+    conversation_id = request.conversation_id or str(uuid4())
 
     if client is None:
         raise HTTPException(
@@ -449,11 +440,11 @@ async def chat_endpoint(request: ChatRequest):
             detail="El mensaje no puede estar vacío."
         )
 
-    # Mantener el ID del frontend o generar uno nuevo.
-    conversation_id = request.conversation_id or str(uuid4())
-
     try:
-        historial = obtener_historial(conversation_id)
+        historial = obtener_historial(
+            conversation_id
+        )
+
         memorias = obtener_memorias()
 
         mensajes = [
@@ -483,14 +474,8 @@ async def chat_endpoint(request: ChatRequest):
                 temperature=TEMPERATURE,
                 max_tokens=MAX_TOKENS
             )
-
         except Exception as err:
-            logger.warning(
-                "Falló %s; se intentará el modelo de respaldo: %s",
-                GROQ_MODEL,
-                err
-            )
-
+            logger.warning(f"Falló {GROQ_MODEL}, usando respaldo: {err}")
             respuesta_modelo = await client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=mensajes,
@@ -499,7 +484,8 @@ async def chat_endpoint(request: ChatRequest):
             )
 
         respuesta = (
-            respuesta_modelo.choices[0].message.content or ""
+            respuesta_modelo.choices[0].message.content
+            or ""
         )
 
         guardar_mensaje(
@@ -549,16 +535,8 @@ async def listar_memorias():
 
 @app.post("/memory")
 async def crear_memoria(request: MemoryRequest):
-    contenido = request.content.strip()
-
-    if not contenido:
-        raise HTTPException(
-            status_code=422,
-            detail="El recuerdo no puede estar vacío."
-        )
-
     memory_id = guardar_memoria(
-        contenido,
+        request.content.strip(),
         request.category.strip() or "general"
     )
 
@@ -602,16 +580,10 @@ async def conversaciones():
     return {
         "conversations": listar_conversaciones()
     }
-
-
 @app.get("/conversations/{conversation_id}/messages")
 async def obtener_mensajes_conversacion(conversation_id: str):
     mensajes = obtener_historial_completo(conversation_id)
-
-    return {
-        "messages": mensajes
-    }
-
+    return {"messages": mensajes}
 
 @app.delete("/conversations/{conversation_id}")
 async def eliminar_conversacion(conversation_id: str):
