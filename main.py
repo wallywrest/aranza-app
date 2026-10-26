@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aranza")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip().strip('"').strip("'")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip().strip('"').strip("'")
 DATABASE_PATH = os.getenv(
     "ARANZA_DB_PATH",
     "aranza.sqlite3"
@@ -446,12 +446,21 @@ async def chat_endpoint(request: ChatRequest):
             "content": mensaje_usuario
         })
 
-        respuesta_modelo = await client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=mensajes,
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS
-        )
+        try:
+            respuesta_modelo = await client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=mensajes,
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS
+            )
+        except Exception as err:
+            logger.warning(f"Falló {GROQ_MODEL}, usando respaldo: {err}")
+            respuesta_modelo = await client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=mensajes,
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS
+            )
 
         respuesta = (
             respuesta_modelo.choices[0].message.content
