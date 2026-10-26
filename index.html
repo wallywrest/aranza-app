@@ -372,14 +372,28 @@
         if (showToast) toast('No se pudo actualizar el historial.');
       }
     }
-    async function openConversation(id) {
-      // El backend descrito expone GET /conversations, pero no un GET para recuperar los mensajes.
-      // Sin ese endpoint solo podemos seleccionar el ID para continuar la conversación, no reconstruir mensajes anteriores.
-      state.conversationId = id; state.messages = []; $('messages').replaceChildren(); showWelcome(true); closeSidebar();
-      document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
-      toast('Conversación seleccionada. Los mensajes previos requieren un endpoint de lectura.');
-      // Al enviar el siguiente mensaje, se manda este conversation_id a POST /chat.
+  async function openConversation(id) {
+  state.conversationId = id;
+  document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+
+  try {
+    const data = await apiFetch(`${API.conversations}/${encodeURIComponent(id)}/messages`);
+    const messagesContainer = $('#messages');
+    if (messagesContainer) messagesContainer.replaceChildren();
+
+    if (data.messages && data.messages.length > 0) {
+      showWelcome(false);
+      data.messages.forEach(msg => {
+        appendMessage(msg.role, msg.content);
+      });
+    } else {
+      showWelcome(true);
     }
+    closeSidebar();
+  } catch (error) {
+    toast('Error al cargar los mensajes de esta conversación.');
+  }
+}
     async function deleteConversation(id) {
       if (!confirm('¿Eliminar esta conversación y sus mensajes guardados? Esta acción no se puede deshacer.')) return;
       try {
