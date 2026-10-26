@@ -379,12 +379,14 @@
   try {
     const data = await apiFetch(`${API.conversations}/${encodeURIComponent(id)}/messages`);
     const messagesContainer = $('#messages');
+    
     if (messagesContainer) messagesContainer.replaceChildren();
 
     if (data.messages && data.messages.length > 0) {
       showWelcome(false);
       data.messages.forEach(msg => {
-        appendMessage(msg.role, msg.content);
+        // Orden correcto: texto (msg.content) primero, rol (msg.role) después
+        appendMessage(msg.content, msg.role);
       });
     } else {
       showWelcome(true);
