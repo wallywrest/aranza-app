@@ -340,8 +340,13 @@
       input.value = ''; input.style.height = 'auto';
       state.messages.push({ role: 'user', content: message }); appendMessage(message, 'user'); setBusy(true); showTyping();
       try {
-        const payload = { message };
-        if (state.conversationId) payload.conversation_id = state.conversationId;
+       const payload = { message };
+if (state.conversationId) payload.conversation_id = state.conversationId;
+
+// Asigna el título automático tomando las primeras palabras
+if (state.messages.length <= 1) {
+  payload.title = message.length > 30 ? message.slice(0, 30) + '...' : message;
+}
         const data = await apiFetch(API.chat, { method: 'POST', body: JSON.stringify(payload) });
         removeTyping();
         const answer = data.response ?? data.message ?? 'La respuesta llegó vacía.';
@@ -354,7 +359,19 @@
       } finally { setBusy(false); input.focus(); }
     }
     function conversationIdOf(item) { return item.conversation_id ?? item.id ?? item.id_conversacion ?? item.uuid ?? null; }
-    function conversationTitleOf(item) { return item.title ?? item.titulo ?? item.last_message ?? item.preview ?? item.last_user_message ?? `Conversación ${String(conversationIdOf(item) || '').slice(0, 8)}`; }
+     function conversationTitleOf(item) {
+  // 1. Si la conversación tiene un título asignado que no sea el ID crudo
+  if (item.title && !item.title.startsWith('chat_')) return item.title;
+  if (item.titulo) return item.titulo;
+
+  // 2. Si no, toma el texto de la plática para nombrarla como en ChatGPT
+  const text = item.last_message || item.preview || item.first_message || '';
+  if (text) {
+    return text.length > 25 ? text.slice(0, 25) + '...' : text;
+  }
+
+  return 'Nueva conversación';
+}
     async function loadConversations(showToast = false) {
       try {
         const data = await apiFetch(API.conversations);
@@ -379,28 +396,36 @@
         if (showToast) toast('No se pudo actualizar el historial.');
       }
     }
-  async function openConversation(id) {
-  // 1. Asignar la conversación activa y reiniciar la memoria de mensajes local
+ async function openConversation(id) {
+  // 1. Asignamos el ID activo y vaciamos la memoria local
   state.conversationId = id;
   state.messages = [];
 
-  // 2. Resaltar en el menú lateral el chat seleccionado
+  // 2. Limpiamos la pantalla AL INSTANTE para que no quede nada del chat anterior
+  const messagesContainer = $('#messages');
+  if (messagesContainer) messagesContainer.replaceChildren();
+
+  // 3. Iluminamos únicamente el chat activo en el panel lateral
   document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
   const activeEl = document.querySelector(`[data-id="${encodeURIComponent(id)}"]`);
   if (activeEl) activeEl.classList.add('active');
 
-  // 3. Limpiar la pantalla por completo
-  const messagesContainer = $('#messages');
-  if (messagesContainer) messagesContainer.replaceChildren();
-
   try {
-    // 4. Cargar únicamente los mensajes correspondientes a esta sala
+    // 4. Pedimos únicamente los mensajes de esta conversación al servidor
     const data = await apiFetch(`${API.conversations}/${encodeURIComponent(id)}/messages`);
-    
-    if (data.messages && data.messages.length > 0) {
+
+    // Si cambiaste de chat mientras cargaba la petición, detenemos para no cruzar datos
+    if (state.conversationId !== id) return;
+
+    if (messagesContainer) messagesContainer.replaceChildren();
+
+    const loadedMessages = data.messages || (Array.isArray(data) ? data : []);
+    state.messages = loadedMessages;
+
+    if (loadedMessages.length > 0) {
       showWelcome(false);
-      data.messages.forEach(msg => {
-        appendMessage(msg.content, msg.role);
+      loadedMessages.forEach(msg => {
+        appendMessage(msg.content || msg.text || '', msg.role);
       });
     } else {
       showWelcome(true);
