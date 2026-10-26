@@ -325,7 +325,14 @@
       content.append(label, dots); row.append(avatar, content); $('messages').appendChild(row); scrollToBottom();
     }
     function removeTyping() { $('typing-row')?.remove(); }
-    function resetChat() { state.conversationId = null; state.messages = []; $('messages').replaceChildren(); showWelcome(true); $('user-input').focus(); closeSidebar(); }
+    function resetChat() {
+  state.conversationId = 'chat_' + Date.now();
+  state.messages = [];
+  const messagesContainer = $('#messages');
+  if (messagesContainer) messagesContainer.replaceChildren();
+  showWelcome(true);
+  closeSidebar();
+}
     async function sendMessage(prefill) {
       if (state.busy) return;
       const input = $('user-input'); const message = String(prefill ?? input.value).trim();
