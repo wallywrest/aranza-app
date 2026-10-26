@@ -19,10 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aranza")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv(
-    "GROQ_MODEL",
-    "llama-3.3-70b-versatile"
-)
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip().strip('"').strip("'")
 DATABASE_PATH = os.getenv(
     "ARANZA_DB_PATH",
     "aranza.sqlite3"
