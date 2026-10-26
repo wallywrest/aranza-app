@@ -264,7 +264,16 @@ def obtener_historial(conversation_id):
         dict(fila)
         for fila in reversed(filas)
     ]
+def obtener_historial_completo(conversation_id):
+    with conectar_db() as conn:
+        filas = conn.execute("""
+            SELECT role, content
+            FROM mensajes
+            WHERE conversation_id = ?
+            ORDER BY id ASC
+        """, (conversation_id,)).fetchall()
 
+    return [dict(fila) for fila in filas]
 
 def guardar_mensaje(conversation_id, role, content):
     with conectar_db() as conn:
@@ -559,7 +568,10 @@ async def conversaciones():
     return {
         "conversations": listar_conversaciones()
     }
-
+@app.get("/conversations/{conversation_id}/messages")
+async def obtener_mensajes_conversacion(conversation_id: str):
+    mensajes = obtener_historial_completo(conversation_id)
+    return {"messages": mensajes}
 
 @app.delete("/conversations/{conversation_id}")
 async def eliminar_conversacion(conversation_id: str):
