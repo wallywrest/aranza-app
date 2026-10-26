@@ -178,7 +178,7 @@
       </div>
       <button class="new-chat" id="new-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg> Nuevo chat</button>
       <div class="section-label"><span>Conversaciones</span><span id="history-count">0</span></div>
-            <div class="history-list" id="history-list"><div class="empty-state">Tus conversaciones aparecerán aquí.</div></div>
+      <div class="history-list" id="history-list"><div class="empty-state">Tus conversaciones aparecerán aquí.</div></div>
       <div class="sidebar-bottom">
         <button class="side-action" id="memory-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v18M5 7h14M5 17h14M7 3v4m10-4v4M7 17v4m10-4v4" stroke-linecap="round"/><circle cx="12" cy="12" r="2.5"/></svg> Memoria de Aranza</button>
         <button class="side-action" id="clear-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke-linecap="round" stroke-linejoin="round"/></svg> Borrar conversación actual</button>
@@ -200,9 +200,7 @@
       <div class="loading-line hidden" id="loading-line"></div>
       <section class="chat-scroll" id="chat-scroll" aria-live="polite">
         <div class="welcome" id="welcome">
-          <div class="welcome-logo" aria-hidden="true">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 27 11 11 25 19C29 17 35 17 39 19L53 11 51 28C55 35 53 45 46 50 38 56 25 56 17 50 10 45 8 35 13 27Z" fill="#F3A45B"/><path d="M17 28 15 17 25 23M47 28 49 17 39 23" stroke="#FFD5A9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 34C24 31 28 31 30 34M35 34C37 31 41 31 43 34" stroke="#28365A" stroke-width="2.8" stroke-linecap="round"/><path d="M30 40 33 42 36 40" stroke="#28365A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 40 9 38M19 44 10 46M45 40 55 38M45 44 54 46" stroke="#FFD5A9" stroke-width="1.8" stroke-linecap="round"/><path d="M29 47C30 50 35 50 37 47" stroke="#28365A" stroke-width="2" stroke-linecap="round"/></svg>
-          </div>
+          <div class="welcome-logo" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 27 11 11 25 19C29 17 35 17 39 19L53 11 51 28C55 35 53 45 46 50 38 56 25 56 17 50 10 45 8 35 13 27Z" fill="#F3A45B"/><path d="M17 28 15 17 25 23M47 28 49 17 39 23" stroke="#FFD5A9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 34C24 31 28 31 30 34M35 34C37 31 41 31 43 34" stroke="#28365A" stroke-width="2.8" stroke-linecap="round"/><path d="M30 40 33 42 36 40" stroke="#28365A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 40 9 38M19 44 10 46M45 40 55 38M45 44 54 46" stroke="#FFD5A9" stroke-width="1.8" stroke-linecap="round"/><path d="M29 47C30 50 35 50 37 47" stroke="#28365A" stroke-width="2" stroke-linecap="round"/></svg></div>
           <h1>Hola, Melvis.</h1>
           <p>Este es tu espacio para pensar, crear y resolver cosas. Vamos paso a paso, sin perder las ideas por el camino.</p>
           <div class="suggestions">
@@ -234,9 +232,8 @@
 
   <script>
     'use strict';
-
-    // Si el HTML se sirve desde FastAPI, deja API_BASE vacío.
-    // Si está en otro dominio o puerto, escribe aquí la URL del backend.
+    // Si sirves este HTML desde FastAPI, deja API_BASE como cadena vacía.
+    // Si lo abres desde otro puerto/dominio, pon aquí la URL del backend, por ejemplo http://127.0.0.1:8000
     const API_BASE = '';
     const API = {
       chat: `${API_BASE}/chat`,
@@ -244,857 +241,209 @@
       memory: `${API_BASE}/memory`
     };
 
-    const STORAGE_KEY = 'aranza_beta_conversations_v2';
     const $ = (id) => document.getElementById(id);
-
-    const state = {
-      conversationId: null,
-      localId: null,
-      busy: false,
-      conversations: [],
-      messages: [],
-      toastTimer: null,
-      requestToken: 0
-    };
-
+    const state = { conversationId: null, busy: false, conversations: [], messages: [], toastTimer: null };
     const catAvatar = `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M13 27 11 11 25 19C29 17 35 17 39 19L53 11 51 28C55 35 53 45 46 50 38 56 25 56 17 50 10 45 8 35 13 27Z" fill="#F3A45B"/><path d="M17 28 15 17 25 23M47 28 49 17 39 23" stroke="#FFD5A9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 34C24 31 28 31 30 34M35 34C37 31 41 31 43 34" stroke="#28365A" stroke-width="2.8" stroke-linecap="round"/><path d="M30 40 33 42 36 40" stroke="#28365A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 40 9 38M19 44 10 46M45 40 55 38M45 44 54 46" stroke="#FFD5A9" stroke-width="1.8" stroke-linecap="round"/><path d="M29 47C30 50 35 50 37 47" stroke="#28365A" stroke-width="2" stroke-linecap="round"/></svg>`;
 
     function toast(message) {
-      const el = $('toast');
-      el.textContent = String(message);
-      el.classList.add('show');
-      clearTimeout(state.toastTimer);
-      state.toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+      const el = $('toast'); el.textContent = message; el.classList.add('show');
+      clearTimeout(state.toastTimer); state.toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
     }
-
     function setBusy(busy) {
-      state.busy = busy;
-      $('send-btn').disabled = busy;
-      $('user-input').disabled = busy;
+      state.busy = busy; $('send-btn').disabled = busy; $('user-input').disabled = busy;
       $('connection-status').textContent = busy ? 'Aranza está pensando…' : 'Lista para conversar';
       $('loading-line').classList.toggle('hidden', !busy);
     }
-
     async function apiFetch(url, options = {}) {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-          ...(options.headers || {})
-        }
-      });
-
+      const response = await fetch(url, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } });
       const raw = await response.text();
       let data = {};
-
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch {
-        data = { detail: raw };
-      }
-
-      if (!response.ok) {
-        throw new Error(data.detail || data.message || `Error HTTP ${response.status}`);
-      }
-
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { detail: raw }; }
+      if (!response.ok) throw new Error(data.detail || data.response || `Error HTTP ${response.status}`);
       return data;
     }
-
     function escapeHTML(value) {
-      return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+      return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
-
+    // Renderizador Markdown ligero y seguro: primero escapa HTML; no permite HTML arbitrario ni scripts.
     function renderMarkdown(source) {
       let text = escapeHTML(source).replace(/\r\n?/g, '\n');
       const codeBlocks = [];
-
       text = text.replace(/```([\w+-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
         const token = `@@CODEBLOCK${codeBlocks.length}@@`;
-        const language = lang ? ` data-lang="${escapeHTML(lang)}"` : '';
-        codeBlocks.push(`<pre><code${language}>${code.replace(/\n$/, '')}</code></pre>`);
+        codeBlocks.push(`<pre><code${lang ? ` data-lang="${escapeHTML(lang)}"` : ''}>${code.replace(/\n$/, '')}</code></pre>`);
         return `\n${token}\n`;
       });
-
       text = text.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-      text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
-      text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-      text = text.replace(/(^|[^_])_([^_\n]+)_/g, '$1<em>$2</em>');
+      text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/__(.+?)__/g, '<strong>$1</strong>');
+      text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g, '$1<em>$2</em>');
       text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-
-      const lines = text.split('\n');
-      let html = '';
-      let paragraph = [];
-      let listType = null;
-
-      const flushParagraph = () => {
-        if (paragraph.length) {
-          html += `<p>${paragraph.join('<br>')}</p>`;
-          paragraph = [];
-        }
-      };
-
-      const closeList = () => {
-        if (listType) {
-          html += `</${listType}>`;
-          listType = null;
-        }
-      };
-
+      const lines = text.split('\n'); let html = '', paragraph = [], listType = null;
+      const flushParagraph = () => { if (paragraph.length) { html += `<p>${paragraph.join('<br>')}</p>`; paragraph = []; } };
+      const closeList = () => { if (listType) { html += `</${listType}>`; listType = null; } };
       for (const line of lines) {
         const token = line.match(/^@@CODEBLOCK(\d+)@@$/);
-
-        if (token) {
-          flushParagraph();
-          closeList();
-          html += codeBlocks[Number(token[1])] || '';
-          continue;
-        }
-
-        const unordered = line.match(/^\s*[-*+]\s+(.+)$/);
-        const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
-
-        if (unordered || ordered) {
-          flushParagraph();
-          const type = unordered ? 'ul' : 'ol';
-
-          if (listType !== type) {
-            closeList();
-            html += `<${type}>`;
-            listType = type;
-          }
-
-          html += `<li>${(unordered || ordered)[1]}</li>`;
-          continue;
-        }
-
-        if (!line.trim()) {
-          flushParagraph();
-          closeList();
-          continue;
-        }
-
+        if (token) { flushParagraph(); closeList(); html += codeBlocks[Number(token[1])] || ''; continue; }
+        const ul = line.match(/^\s*[-*+]\s+(.+)$/); const ol = line.match(/^\s*\d+[.)]\s+(.+)$/);
+        if (ul || ol) { flushParagraph(); const type = ul ? 'ul' : 'ol'; if (listType !== type) { closeList(); html += `<${type}>`; listType = type; } html += `<li>${(ul || ol)[1]}</li>`; continue; }
+        if (!line.trim()) { flushParagraph(); closeList(); continue; }
         const heading = line.match(/^(#{1,3})\s+(.+)$/);
-
-        if (heading) {
-          flushParagraph();
-          closeList();
-          const level = heading[1].length + 2;
-          html += `<h${level} style="font-size:1.05em;margin:10px 0 5px">${heading[2]}</h${level}>`;
-          continue;
-        }
-
-        closeList();
-        paragraph.push(line);
+        if (heading) { flushParagraph(); closeList(); const level = heading[1].length + 2; html += `<h${level} style="font-size:1.05em;margin:10px 0 5px">${heading[2]}</h${level}>`; continue; }
+        closeList(); paragraph.push(line);
       }
-
-      flushParagraph();
-      closeList();
+      flushParagraph(); closeList();
+      // Second pass is unnecessary for normal chat text; ensure any unclosed list is closed above.
       return html || '<p></p>';
     }
-
-    function showWelcome(show) {
-      $('welcome').classList.toggle('hidden', !show);
-      $('messages').classList.toggle('hidden', show);
-    }
-
-    function scrollToBottom(smooth = true) {
-      const area = $('chat-scroll');
-      area.scrollTo({
-        top: area.scrollHeight,
-        behavior: smooth ? 'smooth' : 'auto'
-      });
-    }
-
+    function showWelcome(show) { $('welcome').classList.toggle('hidden', !show); $('messages').classList.toggle('hidden', show); }
+    function scrollToBottom(smooth = true) { $('chat-scroll').scrollTo({ top: $('chat-scroll').scrollHeight, behavior: smooth ? 'smooth' : 'auto' }); }
     function appendMessage(text, role, options = {}) {
       showWelcome(false);
-
-      const row = document.createElement('div');
-      row.className = `message-row ${role === 'user' ? 'user-row' : ''}`;
-
-      const avatar = document.createElement('div');
-      avatar.className = `mini-avatar ${role === 'user' ? 'user-avatar' : ''}`;
-
-      if (role === 'user') {
-        avatar.textContent = 'M';
-      } else {
-        avatar.innerHTML = catAvatar;
-      }
-
-      const content = document.createElement('div');
-      content.className = 'message-content';
-
-      const label = document.createElement('div');
-      label.className = 'message-label';
-      label.textContent = role === 'user' ? 'Melvis' : 'Aranza';
-
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.innerHTML = renderMarkdown(text);
-
+      const row = document.createElement('div'); row.className = `message-row ${role === 'user' ? 'user-row' : ''}`;
+      const avatar = document.createElement('div'); avatar.className = `mini-avatar ${role === 'user' ? 'user-avatar' : ''}`;
+      if (role === 'user') avatar.textContent = 'M'; else avatar.innerHTML = catAvatar;
+      const content = document.createElement('div'); content.className = 'message-content';
+      const label = document.createElement('div'); label.className = 'message-label'; label.textContent = role === 'user' ? 'Melvis' : 'Aranza';
+      const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.innerHTML = renderMarkdown(text);
       content.append(label, bubble);
-
       if (role === 'assistant' && !options.typing) {
-        const tools = document.createElement('div');
-        tools.className = 'message-tools';
-
-        const copy = document.createElement('button');
-        copy.className = 'tiny-action';
-        copy.type = 'button';
-        copy.textContent = 'Copiar respuesta';
-
-        copy.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(String(text));
-            toast('Respuesta copiada.');
-          } catch {
-            toast('El navegador no permitió copiar la respuesta.');
-          }
-        });
-
-        tools.append(copy);
-        content.append(tools);
+        const tools = document.createElement('div'); tools.className = 'message-tools';
+        const copy = document.createElement('button'); copy.className = 'tiny-action'; copy.type = 'button'; copy.textContent = 'Copiar respuesta';
+        copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(String(text)); toast('Respuesta copiada.'); } catch { toast('No se pudo copiar desde este navegador.'); } });
+        tools.append(copy); content.append(tools);
       }
-
-      if (role === 'user') {
-        row.append(content, avatar);
-      } else {
-        row.append(avatar, content);
-      }
-
-      $('messages').appendChild(row);
-      scrollToBottom();
-      return row;
+      if (role === 'user') { row.append(content, avatar); } else { row.append(avatar, content); }
+      $('messages').appendChild(row); scrollToBottom(); return row;
     }
-
     function showTyping() {
       showWelcome(false);
-
-      const row = document.createElement('div');
-      row.className = 'message-row';
-      row.id = 'typing-row';
-
-      const avatar = document.createElement('div');
-      avatar.className = 'mini-avatar';
-      avatar.innerHTML = catAvatar;
-
-      const content = document.createElement('div');
-      content.className = 'message-content';
-
-      const label = document.createElement('div');
-      label.className = 'message-label';
-      label.textContent = 'Aranza está escribiendo';
-
-      const dots = document.createElement('div');
-      dots.className = 'typing-bubble';
-      dots.innerHTML = '<span></span><span></span><span></span>';
-
-      content.append(label, dots);
-      row.append(avatar, content);
-      $('messages').appendChild(row);
-      scrollToBottom();
+      const row = document.createElement('div'); row.className = 'message-row'; row.id = 'typing-row';
+      const avatar = document.createElement('div'); avatar.className = 'mini-avatar'; avatar.innerHTML = catAvatar;
+      const content = document.createElement('div'); content.className = 'message-content';
+      const label = document.createElement('div'); label.className = 'message-label'; label.textContent = 'Aranza está escribiendo';
+      const dots = document.createElement('div'); dots.className = 'typing-bubble'; dots.innerHTML = '<span></span><span></span><span></span>';
+      content.append(label, dots); row.append(avatar, content); $('messages').appendChild(row); scrollToBottom();
     }
-
-    function removeTyping() {
-      $('typing-row')?.remove();
-    }
-        const STORAGE_KEY = 'aranza_beta_chats_v2';
-
-    function makeId() {
-      return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    }
-
-    function readLocalChats() {
+    function removeTyping() { $('typing-row')?.remove(); }
+    function resetChat() { state.conversationId = null; state.messages = []; $('messages').replaceChildren(); showWelcome(true); $('user-input').focus(); closeSidebar(); }
+    async function sendMessage(prefill) {
+      if (state.busy) return;
+      const input = $('user-input'); const message = String(prefill ?? input.value).trim();
+      if (!message) return;
+      input.value = ''; input.style.height = 'auto';
+      state.messages.push({ role: 'user', content: message }); appendMessage(message, 'user'); setBusy(true); showTyping();
       try {
-        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-        return value && typeof value === 'object' ? value : {};
-      } catch {
-        return {};
-      }
+        const payload = { message };
+        if (state.conversationId) payload.conversation_id = state.conversationId;
+        const data = await apiFetch(API.chat, { method: 'POST', body: JSON.stringify(payload) });
+        removeTyping();
+        const answer = data.response ?? data.message ?? 'La respuesta llegó vacía.';
+        if (data.conversation_id) state.conversationId = data.conversation_id;
+        state.messages.push({ role: 'assistant', content: answer }); appendMessage(answer, 'assistant');
+        await loadConversations(false);
+      } catch (error) {
+        removeTyping(); appendMessage(`No pude conectar con Aranza. ${error.message ? `Detalle: ${error.message}` : 'Revisa que FastAPI esté ejecutándose.'}`, 'assistant');
+        toast('No se pudo completar el mensaje.');
+      } finally { setBusy(false); input.focus(); }
     }
-
-    function writeLocalChats(chats) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
-      } catch {
-        toast('No se pudo guardar el historial local del navegador.');
-      }
-    }
-
-    function saveCurrentChat() {
-      if (!state.localId || !state.messages.length) return;
-
-      const chats = readLocalChats();
-      const firstUserMessage = state.messages.find(message => message.role === 'user')?.content || '';
-      const old = chats[state.localId] || {};
-
-      chats[state.localId] = {
-        id: state.localId,
-        conversation_id: state.conversationId,
-        title: old.title || (firstUserMessage.length > 35 ? firstUserMessage.slice(0, 35) + '…' : firstUserMessage) || 'Nueva conversación',
-        messages: state.messages,
-        updatedAt: Date.now()
-      };
-
-      writeLocalChats(chats);
-    }
-
-    function migrateLocalChat(oldId, serverId) {
-      if (!oldId || !serverId) return;
-
-      const chats = readLocalChats();
-      const old = chats[oldId];
-
-      if (old) {
-        delete chats[oldId];
-        old.id = serverId;
-        old.conversation_id = serverId;
-        old.updatedAt = Date.now();
-        chats[serverId] = old;
-        state.localId = serverId;
-        writeLocalChats(chats);
-      } else {
-        state.localId = serverId;
-      }
-    }
-
-    function normalizeMessage(item) {
-      if (!item || typeof item !== 'object') return null;
-
-      const rawRole = String(item.role ?? item.rol ?? item.sender ?? 'assistant').toLowerCase();
-      const role = ['user', 'human', 'melvis'].includes(rawRole) ? 'user' : 'assistant';
-      const content = item.content ?? item.text ?? item.message ?? item.mensaje ?? '';
-
-      return { role, content: String(content) };
-    }
-
-    function conversationIdOf(item) {
-      const id = item?.conversation_id ?? item?.id ?? item?.id_conversacion ?? item?.uuid;
-      return id == null ? null : String(id);
-    }
-
-    function conversationTitleOf(item) {
-      const title = item?.title ?? item?.titulo ?? item?.name ?? item?.nombre;
-
-      if (typeof title === 'string' && title.trim() && !title.startsWith('chat_')) {
-        return title.trim();
-      }
-
-      const preview = item?.last_message ?? item?.preview ?? item?.first_message ?? item?.message ?? '';
-
-      if (typeof preview === 'string' && preview.trim()) {
-        return preview.length > 35 ? preview.slice(0, 35) + '…' : preview;
-      }
-
-      return 'Nueva conversación';
-    }
-
-    function renderConversationList() {
-      const list = $('history-list');
-      const localChats = readLocalChats();
-      const byId = new Map();
-
-      for (const item of state.conversations) {
-        const id = conversationIdOf(item);
-        if (!id) continue;
-
-        byId.set(id, {
-          id,
-          title: conversationTitleOf(item),
-          updatedAt: item.updated_at ?? item.updatedAt ?? 0
-        });
-      }
-
-      for (const [id, item] of Object.entries(localChats)) {
-        if (!item || !Array.isArray(item.messages)) continue;
-
-        const existing = byId.get(id);
-
-        byId.set(id, {
-          id,
-          title: item.title || existing?.title || 'Nueva conversación',
-          updatedAt: item.updatedAt || existing?.updatedAt || 0
-        });
-      }
-
-      const items = [...byId.values()].sort(
-        (a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0)
-      );
-
-      list.replaceChildren();
-      $('history-count').textContent = String(items.length);
-
-      if (!items.length) {
-        list.innerHTML = '<div class="empty-state">Tus conversaciones aparecerán aquí.</div>';
-        return;
-      }
-
-      for (const item of items) {
-        const wrap = document.createElement('div');
-        wrap.style.display = 'flex';
-        wrap.style.alignItems = 'center';
-        wrap.style.gap = '2px';
-
-        const button = document.createElement('button');
-        button.className = `history-item ${item.id === state.localId ? 'active' : ''}`;
-        button.type = 'button';
-        button.dataset.id = item.id;
-        button.title = item.title;
-
-        const icon = document.createElement('span');
-        icon.textContent = '◷';
-        icon.setAttribute('aria-hidden', 'true');
-
-        const title = document.createElement('span');
-        title.className = 'history-title';
-        title.textContent = item.title;
-
-        button.append(icon, title);
-        button.addEventListener('click', () => openConversation(item.id));
-
-        const del = document.createElement('button');
-        del.className = 'history-delete';
-        del.type = 'button';
-        del.title = 'Eliminar conversación';
-        del.setAttribute('aria-label', `Eliminar conversación: ${item.title}`);
-        del.textContent = '×';
-        del.addEventListener('click', async event => {
-          event.stopPropagation();
-          await deleteConversation(item.id);
-        });
-
-        wrap.append(button, del);
-        list.appendChild(wrap);
-      }
-    }
-
+    function conversationIdOf(item) { return item.conversation_id ?? item.id ?? item.id_conversacion ?? item.uuid ?? null; }
+    function conversationTitleOf(item) { return item.title ?? item.titulo ?? item.last_message ?? item.preview ?? item.last_user_message ?? `Conversación ${String(conversationIdOf(item) || '').slice(0, 8)}`; }
     async function loadConversations(showToast = false) {
       try {
         const data = await apiFetch(API.conversations);
-        const items = Array.isArray(data)
-          ? data
-          : (data.conversations ?? data.items ?? data.results ?? []);
-
-        state.conversations = Array.isArray(items) ? items : [];
-        renderConversationList();
-
+        const items = Array.isArray(data) ? data : (data.conversations ?? data.items ?? data.results ?? []);
+        state.conversations = items;
+        const list = $('history-list'); list.replaceChildren(); $('history-count').textContent = String(items.length);
+        if (!items.length) { list.innerHTML = '<div class="empty-state">Tus conversaciones aparecerán aquí.</div>'; return; }
+        for (const item of items) {
+          const id = conversationIdOf(item); if (!id) continue;
+          const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.alignItems = 'center';
+          const button = document.createElement('button'); button.className = `history-item ${id === state.conversationId ? 'active' : ''}`; button.type = 'button';
+          const icon = document.createElement('span'); icon.textContent = '◷'; icon.setAttribute('aria-hidden', 'true');
+          const title = document.createElement('span'); title.className = 'history-title'; title.textContent = conversationTitleOf(item);
+          button.append(icon, title); button.addEventListener('click', () => openConversation(id));
+          const del = document.createElement('button'); del.className = 'history-delete'; del.type = 'button'; del.title = 'Eliminar conversación'; del.setAttribute('aria-label', 'Eliminar conversación'); del.textContent = '×';
+          del.addEventListener('click', async (event) => { event.stopPropagation(); await deleteConversation(id); });
+          wrap.append(button, del); list.appendChild(wrap);
+        }
         if (showToast) toast('Historial actualizado.');
-      } catch {
-        // El historial del navegador sigue disponible aunque falle el servidor.
-        state.conversations = [];
-        renderConversationList();
-
-        if (showToast) toast('No se pudo actualizar el historial del servidor.');
-      }
-    }
-
-    function resetChat() {
-      if (state.busy) {
-        toast('Espera a que termine la respuesta actual.');
-        return;
-      }
-
-      saveCurrentChat();
-
-      state.conversationId = null;
-      state.localId = `draft_${makeId()}`;
-      state.messages = [];
-
-      $('messages').replaceChildren();
-      $('user-input').value = '';
-      $('user-input').style.height = 'auto';
-
-      showWelcome(true);
-      closeSidebar();
-      renderConversationList();
-    }
-
-    async function sendMessage(prefill) {
-      if (state.busy) return;
-
-      const input = $('user-input');
-      const message = String(prefill ?? input.value).trim();
-
-      if (!message) return;
-
-      if (!state.localId) state.localId = `draft_${makeId()}`;
-
-      input.value = '';
-      input.style.height = 'auto';
-
-      state.messages.push({ role: 'user', content: message });
-      appendMessage(message, 'user');
-      saveCurrentChat();
-
-      setBusy(true);
-      showTyping();
-
-      const requestToken = ++state.requestToken;
-
-      try {
-        const payload = { message };
-
-        if (state.conversationId) {
-          payload.conversation_id = state.conversationId;
-        }
-
-        const userMessages = state.messages.filter(item => item.role === 'user');
-
-        if (userMessages.length === 1) {
-          payload.title = message.length > 35 ? message.slice(0, 35) + '…' : message;
-        }
-
-        const data = await apiFetch(API.chat, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-
-        if (requestToken !== state.requestToken) return;
-
-        removeTyping();
-
-        const answer = data.response ?? data.message ?? data.reply ?? 'La respuesta llegó vacía.';
-
-        if (data.conversation_id != null) {
-          const previousId = state.localId;
-          state.conversationId = String(data.conversation_id);
-          migrateLocalChat(previousId, state.conversationId);
-        }
-
-        state.messages.push({ role: 'assistant', content: String(answer) });
-        appendMessage(String(answer), 'assistant');
-
-        saveCurrentChat();
-        await loadConversations(false);
       } catch (error) {
-        if (requestToken !== state.requestToken) return;
-
-        removeTyping();
-
-        const answer = `No pude conectar con Aranza. ${error.message || 'Revisa que FastAPI esté ejecutándose.'}`;
-
-        state.messages.push({ role: 'assistant', content: answer });
-        appendMessage(answer, 'assistant');
-        saveCurrentChat();
-
-        $('connection-status').textContent = 'No se pudo conectar';
-        toast('No se pudo completar el mensaje.');
-      } finally {
-        if (requestToken === state.requestToken) {
-          setBusy(false);
-          input.focus();
-        }
+        $('history-list').innerHTML = '<div class="empty-state">No pude cargar el historial. Comprueba que el backend esté activo.</div>';
+        if (showToast) toast('No se pudo actualizar el historial.');
       }
     }
-
     async function openConversation(id) {
-      if (state.busy) {
-        toast('Espera a que termine la respuesta actual.');
-        return;
-      }
-
-      saveCurrentChat();
-
-      const targetId = String(id);
-      state.requestToken++;
-      state.localId = targetId;
-      state.messages = [];
-
-      const localChats = readLocalChats();
-      const localChat = localChats[targetId];
-
-      state.conversationId = localChat?.conversation_id
-        ? String(localChat.conversation_id)
-        : (targetId.startsWith('draft_') ? null : targetId);
-
-      $('messages').replaceChildren();
-      renderConversationList();
-      closeSidebar();
-
-      if (localChat && Array.isArray(localChat.messages)) {
-        state.messages = localChat.messages.map(normalizeMessage).filter(Boolean);
-        renderLoadedMessages();
-        return;
-      }
-
-      if (!targetId.startsWith('draft_')) {
-        try {
-          const data = await apiFetch(
-            `${API.conversations}/${encodeURIComponent(targetId)}/messages`
-          );
-
-          if (state.localId !== targetId) return;
-
-          const messages = data.messages ?? data.items ?? data.results ?? (Array.isArray(data) ? data : []);
-          state.messages = Array.isArray(messages)
-            ? messages.map(normalizeMessage).filter(Boolean)
-            : [];
-
-          if (state.messages.length) {
-            saveCurrentChat();
-            renderLoadedMessages();
-          } else {
-            showWelcome(true);
-            toast('El backend no devolvió mensajes para este chat.');
-          }
-        } catch {
-          showWelcome(true);
-          toast('No hay copia local y el backend no permite recuperar los mensajes de este chat.');
-        }
-      } else {
-        showWelcome(true);
-      }
+      // El backend descrito expone GET /conversations, pero no un GET para recuperar los mensajes.
+      // Sin ese endpoint solo podemos seleccionar el ID para continuar la conversación, no reconstruir mensajes anteriores.
+      state.conversationId = id; state.messages = []; $('messages').replaceChildren(); showWelcome(true); closeSidebar();
+      document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+      toast('Conversación seleccionada. Los mensajes previos requieren un endpoint de lectura.');
+      // Al enviar el siguiente mensaje, se manda este conversation_id a POST /chat.
     }
-
-    function renderLoadedMessages() {
-      $('messages').replaceChildren();
-
-      if (!state.messages.length) {
-        showWelcome(true);
-        return;
-      }
-
-      showWelcome(false);
-      state.messages.forEach(message => appendMessage(message.content, message.role));
-      scrollToBottom(false);
-      renderConversationList();
-    }
-
     async function deleteConversation(id) {
-      const targetId = String(id);
-
-      if (!confirm('¿Eliminar esta conversación? Esta acción no se puede deshacer.')) return;
-
-      const chats = readLocalChats();
-      const localChat = chats[targetId];
-
-      const serverId = localChat?.conversation_id ||
-        (!targetId.startsWith('draft_') ? targetId : null);
-
-      if (serverId) {
-        try {
-          await apiFetch(`${API.conversations}/${encodeURIComponent(serverId)}`, {
-            method: 'DELETE'
-          });
-        } catch (error) {
-          toast(`No se pudo borrar del servidor: ${error.message}`);
-          return;
-        }
-      }
-
-      delete chats[targetId];
-      writeLocalChats(chats);
-
-      if (state.localId === targetId || state.conversationId === targetId) {
-        state.conversationId = null;
-        state.localId = `draft_${makeId()}`;
-        state.messages = [];
-        $('messages').replaceChildren();
-        showWelcome(true);
-      }
-
-      await loadConversations(false);
-      renderConversationList();
-      toast('Conversación eliminada.');
+      if (!confirm('¿Eliminar esta conversación y sus mensajes guardados? Esta acción no se puede deshacer.')) return;
+      try {
+        await apiFetch(`${API.conversations}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (state.conversationId === id) resetChat();
+        await loadConversations(false); toast('Conversación eliminada.');
+      } catch (error) { toast(`No se pudo borrar: ${error.message}`); }
     }
-
     async function deleteCurrentConversation() {
-      if (state.busy) {
-        toast('Espera a que termine la respuesta actual.');
-        return;
-      }
-
-      if (!state.messages.length && !state.conversationId) {
-        resetChat();
-        toast('Chat nuevo listo.');
-        return;
-      }
-
-      const id = state.localId || state.conversationId;
-
-      if (id) await deleteConversation(id);
+      if (!state.conversationId) { resetChat(); toast('Chat nuevo listo.'); return; }
+      await deleteConversation(state.conversationId);
     }
-
-    function memoryIdOf(item) {
-      const id = item?.id ?? item?.memory_id ?? item?.id_memoria ?? item?.uuid;
-      return id == null ? null : String(id);
-    }
-
-    function memoryTextOf(item) {
-      const value = item?.content ?? item?.contenido ?? item?.memory ??
-        item?.text ?? item?.recuerdo ?? item?.value;
-
-      return value == null ? JSON.stringify(item) : String(value);
-    }
-
+    function memoryIdOf(item) { return item.id ?? item.memory_id ?? item.id_memoria ?? item.uuid ?? null; }
+    function memoryTextOf(item) { return item.content ?? item.contenido ?? item.memory ?? item.text ?? item.recuerdo ?? item.value ?? JSON.stringify(item); }
     async function loadMemories() {
-      const list = $('memory-list');
-      list.innerHTML = '<div class="empty-state">Cargando recuerdos...</div>';
-
+      const list = $('memory-list'); list.innerHTML = '<div class="empty-state">Cargando recuerdos...</div>';
       try {
         const data = await apiFetch(API.memory);
-        const items = Array.isArray(data)
-          ? data
-          : (data.memories ?? data.items ?? data.results ?? []);
-
+        const items = Array.isArray(data) ? data : (data.memories ?? data.items ?? data.results ?? []);
         list.replaceChildren();
-
-        if (!Array.isArray(items) || !items.length) {
-          list.innerHTML = '<div class="empty-state">Todavía no hay recuerdos guardados.</div>';
-          return;
-        }
-
-        for (const item of items) {
-          const row = document.createElement('div');
-          row.className = 'memory-item';
-
-          const content = document.createElement('div');
-          content.className = 'memory-text';
-          content.textContent = memoryTextOf(item);
+        if (!items.length) { list.innerHTML = '<div class="empty-state">Todavía no hay recuerdos guardados, o el backend devuelve otro formato.</div>'; return; }
+        items.forEach((item) => {
+          const row = document.createElement('div'); row.className = 'memory-item';
+          const content = document.createElement('div'); content.className = 'memory-text'; content.textContent = memoryTextOf(item);
           row.append(content);
-
           const id = memoryIdOf(item);
-
           if (id !== null) {
-            const del = document.createElement('button');
-            del.className = 'memory-delete';
-            del.type = 'button';
-            del.textContent = '×';
-            del.title = 'Eliminar recuerdo';
-            del.setAttribute('aria-label', 'Eliminar recuerdo');
-            del.addEventListener('click', () => deleteMemory(id));
-            row.append(del);
+            const del = document.createElement('button'); del.className = 'memory-delete'; del.type = 'button'; del.textContent = '×'; del.title = 'Eliminar recuerdo'; del.setAttribute('aria-label', 'Eliminar recuerdo');
+            del.addEventListener('click', () => deleteMemory(id)); row.append(del);
           }
-
           list.append(row);
-        }
-      } catch (error) {
-        list.replaceChildren();
-
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        empty.textContent = `No pude cargar la memoria. ${error.message || ''}`;
-        list.append(empty);
-      }
-    }
-
-    async function addMemory(event) {
-      event.preventDefault();
-
-      const input = $('memory-input');
-      const content = input.value.trim();
-      if (!content) return;
-
-      const button = $('memory-form').querySelector('button[type="submit"]');
-      button.disabled = true;
-
-      try {
-        await apiFetch(API.memory, {
-          method: 'POST',
-          body: JSON.stringify({ content })
         });
-
-        input.value = '';
-        await loadMemories();
-        toast('Recuerdo guardado.');
-      } catch (error) {
-        toast(`No se pudo guardar: ${error.message}`);
-      } finally {
-        button.disabled = false;
-      }
+      } catch (error) { list.innerHTML = `<div class="empty-state">No pude cargar la memoria.<br>${escapeHTML(error.message)}</div>`; }
     }
-
+    async function addMemory(event) {
+      event.preventDefault(); const input = $('memory-input'); const content = input.value.trim(); if (!content) return;
+      try {
+        // Este cuerpo usa {content}. Si tu endpoint POST /memory exige otra clave, cámbiala aquí.
+        await apiFetch(API.memory, { method: 'POST', body: JSON.stringify({ content }) });
+        input.value = ''; await loadMemories(); toast('Recuerdo guardado.');
+      } catch (error) { toast(`No se pudo guardar: ${error.message}`); }
+    }
     async function deleteMemory(id) {
       if (!confirm('¿Eliminar este recuerdo?')) return;
-
-      try {
-        await apiFetch(`${API.memory}/${encodeURIComponent(id)}`, {
-          method: 'DELETE'
-        });
-
-        await loadMemories();
-        toast('Recuerdo eliminado.');
-      } catch (error) {
-        toast(`No se pudo eliminar: ${error.message}`);
-      }
+      try { await apiFetch(`${API.memory}/${encodeURIComponent(id)}`, { method: 'DELETE' }); await loadMemories(); toast('Recuerdo eliminado.'); }
+      catch (error) { toast(`No se pudo eliminar: ${error.message}`); }
     }
+    function openMemory() { $('memory-panel').classList.add('open'); $('panel-backdrop').classList.add('open'); $('memory-panel').setAttribute('aria-hidden', 'false'); loadMemories(); closeSidebar(); }
+    function closeMemory() { $('memory-panel').classList.remove('open'); $('panel-backdrop').classList.remove('open'); $('memory-panel').setAttribute('aria-hidden', 'true'); }
+    function openSidebar() { $('sidebar').classList.add('open'); $('sidebar-overlay').classList.add('open'); }
+    function closeSidebar() { $('sidebar').classList.remove('open'); $('sidebar-overlay').classList.remove('open'); }
 
-    function openMemory() {
-      $('memory-panel').classList.add('open');
-      $('panel-backdrop').classList.add('open');
-      $('memory-panel').setAttribute('aria-hidden', 'false');
-      loadMemories();
-      closeSidebar();
-    }
-
-    function closeMemory() {
-      $('memory-panel').classList.remove('open');
-      $('panel-backdrop').classList.remove('open');
-      $('memory-panel').setAttribute('aria-hidden', 'true');
-    }
-
-    function openSidebar() {
-      $('sidebar').classList.add('open');
-      $('sidebar-overlay').classList.add('open');
-    }
-
-    function closeSidebar() {
-      $('sidebar').classList.remove('open');
-      $('sidebar-overlay').classList.remove('open');
-    }
-
-    $('composer-form').addEventListener('submit', event => {
-      event.preventDefault();
-      sendMessage();
-    });
-
-    $('user-input').addEventListener('input', event => {
-      const input = event.target;
-      input.style.height = 'auto';
-      input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
-    });
-
-    $('user-input').addEventListener('keydown', event => {
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        sendMessage();
-      }
-    });
-
-    $('new-chat-btn').addEventListener('click', () => {
-      resetChat();
-      if (!state.busy) toast('Chat nuevo listo.');
-    });
-
+    $('composer-form').addEventListener('submit', (event) => { event.preventDefault(); sendMessage(); });
+    $('user-input').addEventListener('input', (event) => { const el = event.target; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 150)}px`; });
+    $('user-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
+    $('new-chat-btn').addEventListener('click', () => { resetChat(); toast('Chat nuevo listo.'); });
     $('clear-chat-btn').addEventListener('click', deleteCurrentConversation);
-    $('memory-open-btn').addEventListener('click', openMemory);
-    $('top-memory-btn').addEventListener('click', openMemory);
-    $('memory-close-btn').addEventListener('click', closeMemory);
-    $('panel-backdrop').addEventListener('click', closeMemory);
+    $('memory-open-btn').addEventListener('click', openMemory); $('top-memory-btn').addEventListener('click', openMemory);
+    $('memory-close-btn').addEventListener('click', closeMemory); $('panel-backdrop').addEventListener('click', closeMemory);
     $('memory-form').addEventListener('submit', addMemory);
-    $('menu-btn').addEventListener('click', openSidebar);
-    $('sidebar-overlay').addEventListener('click', closeSidebar);
+    $('menu-btn').addEventListener('click', openSidebar); $('sidebar-overlay').addEventListener('click', closeSidebar);
     $('refresh-history-btn').addEventListener('click', () => loadConversations(true));
-
-    document.querySelectorAll('[data-prompt]').forEach(button => {
-      button.addEventListener('click', () => sendMessage(button.dataset.prompt));
-    });
-
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') {
-        closeMemory();
-        closeSidebar();
-      }
-    });
-
-    // Primero muestra el historial local; después intenta sincronizarlo con FastAPI.
-    state.localId = `draft_${makeId()}`;
-    renderConversationList();
+    document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => sendMessage(button.dataset.prompt)));
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMemory(); closeSidebar(); } });
     loadConversations(false);
   </script>
 </body>
