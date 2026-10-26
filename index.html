@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aranza AI</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: #0b1120; color: #f8fafc; display: flex; flex-direction: column; height: 100vh; }
+    
+    /* Encabezado sobrio en azul sin emojis */
+    header { padding: 16px; background: #151d36; text-align: center; font-weight: 600; font-size: 1.15rem; border-bottom: 1px solid #222d4a; color: #c4d0ff; letter-spacing: 0.5px; }
+    
+    #chat-box { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .msg { max-width: 82%; padding: 12px 16px; border-radius: 18px; line-height: 1.45; font-size: 0.95rem; }
+    
+    /* Tu burbuja en azul Periwinkle */
+    .user { align-self: flex-end; background: #6C7CE5; color: #ffffff; border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(108, 124, 229, 0.25); }
+    
+    /* Burbuja de Aranza en tono azul noche profundo */
+    .aranza { align-self: flex-start; background: #1b243b; color: #e2e8f0; border-bottom-left-radius: 4px; border: 1px solid #263354; }
+    
+    footer { padding: 12px; background: #151d36; display: flex; gap: 8px; border-top: 1px solid #222d4a; }
+    input { flex: 1; padding: 12px 16px; border-radius: 24px; border: 1px solid #2d3b61; background: #0b1120; color: white; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: #6C7CE5; }
+    
+    /* Botón enviar en azul Periwinkle */
+    button { padding: 12px 20px; border-radius: 24px; border: none; background: #6C7CE5; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <header>Aranza</header>
+  <div id="chat-box"></div>
+  <footer>
+    <input type="text" id="user-input" placeholder="Escribe un mensaje..." onkeypress="if(event.key==='Enter') sendMessage()">
+    <button id="send-btn" onclick="sendMessage()">Enviar</button>
+  </footer>
+
+  <script>
+    const API_URL = "http://192.168.10.144:8000/chat";
+
+    async function sendMessage() {
+      const input = document.getElementById('user-input');
+      const chatBox = document.getElementById('chat-box');
+      const btn = document.getElementById('send-btn');
+      const text = input.value.trim();
+
+      if (!text) return;
+
+      appendMessage(text, 'user');
+      input.value = '';
+      input.disabled = true;
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+        appendMessage(data.response, 'aranza');
+      } catch (err) {
+        appendMessage("Error de conexión con Aranza.", 'aranza');
+      } finally {
+        input.disabled = false;
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    function appendMessage(text, sender) {
+      const chatBox = document.getElementById('chat-box');
+      const div = document.createElement('div');
+      div.className = `msg ${sender}`;
+      div.innerText = text;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  </script>
+</body>
+</html>
