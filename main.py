@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from groq import AsyncGroq
@@ -399,6 +400,10 @@ class MemoryRequest(BaseModel):
 # ============================================================
 # 7. ENDPOINT PRINCIPAL DE CHAT
 # ============================================================
+
+@app.get("/")
+async def mostrar_pagina_principal():
+    return FileResponse("index.html")
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
