@@ -380,19 +380,26 @@
       }
     }
   async function openConversation(id) {
+  // 1. Asignar la conversación activa y reiniciar la memoria de mensajes local
   state.conversationId = id;
+  state.messages = [];
+
+  // 2. Resaltar en el menú lateral el chat seleccionado
   document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+  const activeEl = document.querySelector(`[data-id="${encodeURIComponent(id)}"]`);
+  if (activeEl) activeEl.classList.add('active');
+
+  // 3. Limpiar la pantalla por completo
+  const messagesContainer = $('#messages');
+  if (messagesContainer) messagesContainer.replaceChildren();
 
   try {
+    // 4. Cargar únicamente los mensajes correspondientes a esta sala
     const data = await apiFetch(`${API.conversations}/${encodeURIComponent(id)}/messages`);
-    const messagesContainer = $('#messages');
     
-    if (messagesContainer) messagesContainer.replaceChildren();
-
     if (data.messages && data.messages.length > 0) {
       showWelcome(false);
       data.messages.forEach(msg => {
-        // Orden correcto: texto (msg.content) primero, rol (msg.role) después
         appendMessage(msg.content, msg.role);
       });
     } else {
@@ -400,7 +407,7 @@
     }
     closeSidebar();
   } catch (error) {
-    toast('Error al cargar los mensajes de esta conversación.');
+    toast('Error al cargar la conversación.');
   }
 }
     async function deleteConversation(id) {
