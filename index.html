@@ -181,7 +181,7 @@
       <div class="history-list" id="history-list"><div class="empty-state">Tus conversaciones aparecerán aquí.</div></div>
       <div class="sidebar-bottom">
         <button class="side-action" id="memory-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v18M5 7h14M5 17h14M7 3v4m10-4v4M7 17v4m10-4v4" stroke-linecap="round"/><circle cx="12" cy="12" r="2.5"/></svg> Memoria de Aranza</button>
-        <button class="side-action" id="clear-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke-linecap="round" stroke-linejoin="round"/></svg> Borrar conversación actual</button>
+        <button class="side-action" id="clear-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke-linecap="round" stroke-linejoin="round"/></svg> Ocultar conversación actual</button>
       </div>
       <div class="profile"><div class="profile-avatar">M</div><div><div class="profile-title">Melvis</div><div class="profile-sub">Espacio personal</div></div></div>
     </aside>
@@ -232,9 +232,10 @@
 
   <script>
     'use strict';
-    // Si sirves este HTML desde FastAPI, deja API_BASE como cadena vacía.
-    // Si lo abres desde otro puerto/dominio, pon aquí la URL del backend, por ejemplo http://127.0.0.1:8000
-    const API_BASE = '';
+    // Por defecto, la API vive en el mismo dominio que esta página.
+    // Si publicas el HTML en un host separado, define window.ARANZA_API_BASE
+    // con la URL pública del backend ANTES de este script.
+    const API_BASE = String(window.ARANZA_API_BASE || window.location.origin).replace(/\/+$/, '');
     const API = {
       chat: `${API_BASE}/chat`,
       conversations: `${API_BASE}/conversations`,
@@ -242,7 +243,42 @@
     };
 
     const $ = (id) => document.getElementById(id);
+    const STORAGE_MESSAGES = 'aranza.conversationMessages.v1';
+    const STORAGE_META = 'aranza.conversationMeta.v1';
+    const STORAGE_HIDDEN = 'aranza.hiddenConversations.v1';
     const state = { conversationId: null, busy: false, conversations: [], messages: [], toastTimer: null };
+
+    function newConversationId() {
+      if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return `chat_${globalThis.crypto.randomUUID()}`;
+      return `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    function readLocal(key, fallback) {
+      try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback; }
+      catch { return fallback; }
+    }
+    function writeLocal(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+      catch { toast('El navegador no pudo guardar el historial local.'); return false; }
+    }
+    function saveCurrentConversation() {
+      if (!state.conversationId) return;
+      const allMessages = readLocal(STORAGE_MESSAGES, {});
+      allMessages[state.conversationId] = state.messages.slice(-200);
+      writeLocal(STORAGE_MESSAGES, allMessages);
+      const meta = readLocal(STORAGE_META, {});
+      const firstUser = state.messages.find(item => item.role === 'user');
+      meta[state.conversationId] = {
+        title: firstUser ? firstUser.content.replace(/\s+/g, ' ').slice(0, 48) : 'Conversación nueva',
+        updatedAt: Date.now()
+      };
+      writeLocal(STORAGE_META, meta); updateConversationHeading();
+    }
+    function hiddenConversationIds() { return new Set(readLocal(STORAGE_HIDDEN, [])); }
+    function setConversationHidden(id, hidden) {
+      const ids = hiddenConversationIds();
+      if (hidden) ids.add(String(id)); else ids.delete(String(id));
+      writeLocal(STORAGE_HIDDEN, [...ids]);
+    }
     const catAvatar = `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M13 27 11 11 25 19C29 17 35 17 39 19L53 11 51 28C55 35 53 45 46 50 38 56 25 56 17 50 10 45 8 35 13 27Z" fill="#F3A45B"/><path d="M17 28 15 17 25 23M47 28 49 17 39 23" stroke="#FFD5A9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 34C24 31 28 31 30 34M35 34C37 31 41 31 43 34" stroke="#28365A" stroke-width="2.8" stroke-linecap="round"/><path d="M30 40 33 42 36 40" stroke="#28365A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 40 9 38M19 44 10 46M45 40 55 38M45 44 54 46" stroke="#FFD5A9" stroke-width="1.8" stroke-linecap="round"/><path d="M29 47C30 50 35 50 37 47" stroke="#28365A" stroke-width="2" stroke-linecap="round"/></svg>`;
 
     function toast(message) {
@@ -255,7 +291,35 @@
       $('loading-line').classList.toggle('hidden', !busy);
     }
     async function apiFetch(url, options = {}) {
-      const response = await fetch(url, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } });
+      let response;
+      const tokenKey = 'aranza.accessToken.v1';
+      const request = async () => {
+        const token = sessionStorage.getItem(tokenKey) || '';
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(options.headers || {})
+          }
+        });
+      };
+      try {
+        response = await request();
+        if (response.status === 401) {
+          const raw401 = await response.clone().text();
+          let detail401 = ''; try { detail401 = JSON.parse(raw401).detail || ''; } catch {}
+          if (detail401.includes('clave de acceso')) {
+            const entered = window.prompt('Aranza está protegida. Introduce la clave de acceso configurada en el servidor:');
+            if (entered === null || !entered.trim()) throw new Error('Acceso cancelado.');
+            sessionStorage.setItem(tokenKey, entered.trim());
+            response = await request();
+          }
+        }
+      } catch (error) {
+        if (error instanceof TypeError) throw new Error(`No se pudo contactar el servidor (${API_BASE}). Comprueba que el backend esté publicado y que la URL sea correcta.`);
+        throw error;
+      }
       const raw = await response.text();
       let data = {};
       try { data = raw ? JSON.parse(raw) : {}; } catch { data = { detail: raw }; }
@@ -325,25 +389,51 @@
       content.append(label, dots); row.append(avatar, content); $('messages').appendChild(row); scrollToBottom();
     }
     function removeTyping() { $('typing-row')?.remove(); }
-    function resetChat() { state.conversationId = null; state.messages = []; $('messages').replaceChildren(); showWelcome(true); $('user-input').focus(); closeSidebar(); }
+    function resetChat() {
+      state.conversationId = newConversationId(); state.messages = [];
+      $('messages').replaceChildren(); showWelcome(true);
+      document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+      $('user-input').focus(); closeSidebar(); updateConversationHeading();
+    }
+    function updateConversationHeading() {
+      const meta = readLocal(STORAGE_META, {});
+      const serverConversation = state.conversations.find(item => String(conversationIdOf(item)) === String(state.conversationId));
+      const title = serverConversation ? conversationTitleOf(serverConversation) : meta[state.conversationId]?.title;
+      const heading = document.querySelector('.top-title');
+      if (heading) heading.textContent = title || 'Tu conversación';
+    }
+    function restoreConversationMessages(id) {
+      const allMessages = readLocal(STORAGE_MESSAGES, {});
+      const saved = Array.isArray(allMessages[id]) ? allMessages[id] : [];
+      state.messages = saved.slice(); $('messages').replaceChildren();
+      if (!saved.length) { showWelcome(true); return false; }
+      showWelcome(false);
+      for (const item of saved) {
+        if (item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string') {
+          appendMessage(item.content, item.role, { restoring: true });
+        }
+      }
+      scrollToBottom(false); return true;
+    }
     async function sendMessage(prefill) {
       if (state.busy) return;
       const input = $('user-input'); const message = String(prefill ?? input.value).trim();
       if (!message) return;
       input.value = ''; input.style.height = 'auto';
-      state.messages.push({ role: 'user', content: message }); appendMessage(message, 'user'); setBusy(true); showTyping();
+      if (!state.conversationId) state.conversationId = newConversationId();
+      state.messages.push({ role: 'user', content: message }); saveCurrentConversation();
+      appendMessage(message, 'user'); setBusy(true); showTyping();
       try {
-        const payload = { message };
-        if (state.conversationId) payload.conversation_id = state.conversationId;
+        const payload = { message, conversation_id: state.conversationId };
         const data = await apiFetch(API.chat, { method: 'POST', body: JSON.stringify(payload) });
         removeTyping();
         const answer = data.response ?? data.message ?? 'La respuesta llegó vacía.';
         if (data.conversation_id) state.conversationId = data.conversation_id;
-        state.messages.push({ role: 'assistant', content: answer }); appendMessage(answer, 'assistant');
+        state.messages.push({ role: 'assistant', content: answer }); saveCurrentConversation(); appendMessage(answer, 'assistant');
         await loadConversations(false);
       } catch (error) {
-        removeTyping(); appendMessage(`No pude conectar con Aranza. ${error.message ? `Detalle: ${error.message}` : 'Revisa que FastAPI esté ejecutándose.'}`, 'assistant');
-        toast('No se pudo completar el mensaje.');
+        removeTyping(); appendMessage(`No pude conectar con Aranza. ${error.message ? `Detalle: ${error.message}` : 'Revisa que FastAPI esté ejecutándose.'}`, 'assistant', { temporaryError: true });
+        toast('No se pudo completar el mensaje. Tu mensaje sigue visible en esta sesión.');
       } finally { setBusy(false); input.focus(); }
     }
     function conversationIdOf(item) { return item.conversation_id ?? item.id ?? item.id_conversacion ?? item.uuid ?? null; }
@@ -351,19 +441,22 @@
     async function loadConversations(showToast = false) {
       try {
         const data = await apiFetch(API.conversations);
-        const items = Array.isArray(data) ? data : (data.conversations ?? data.items ?? data.results ?? []);
+        const serverItems = Array.isArray(data) ? data : (data.conversations ?? data.items ?? data.results ?? []);
+        const items = serverItems.filter(item => conversationIdOf(item));
         state.conversations = items;
         const list = $('history-list'); list.replaceChildren(); $('history-count').textContent = String(items.length);
         if (!items.length) { list.innerHTML = '<div class="empty-state">Tus conversaciones aparecerán aquí.</div>'; return; }
+        const meta = readLocal(STORAGE_META, {});
         for (const item of items) {
           const id = conversationIdOf(item); if (!id) continue;
           const wrap = document.createElement('div'); wrap.style.display = 'flex'; wrap.style.alignItems = 'center';
           const button = document.createElement('button'); button.className = `history-item ${id === state.conversationId ? 'active' : ''}`; button.type = 'button';
           const icon = document.createElement('span'); icon.textContent = '◷'; icon.setAttribute('aria-hidden', 'true');
-          const title = document.createElement('span'); title.className = 'history-title'; title.textContent = conversationTitleOf(item);
+          const title = document.createElement('span'); title.className = 'history-title'; title.textContent = conversationTitleOf(item) || meta[id]?.title || `Conversación ${String(id).slice(0, 8)}`;
+          button.dataset.id = String(id);
           button.append(icon, title); button.addEventListener('click', () => openConversation(id));
           const del = document.createElement('button'); del.className = 'history-delete'; del.type = 'button'; del.title = 'Eliminar conversación'; del.setAttribute('aria-label', 'Eliminar conversación'); del.textContent = '×';
-          del.addEventListener('click', async (event) => { event.stopPropagation(); await deleteConversation(id); });
+          del.addEventListener('click', async (event) => { event.stopPropagation(); await hideConversation(id); });
           wrap.append(button, del); list.appendChild(wrap);
         }
         if (showToast) toast('Historial actualizado.');
@@ -373,24 +466,55 @@
       }
     }
     async function openConversation(id) {
-      // El backend descrito expone GET /conversations, pero no un GET para recuperar los mensajes.
-      // Sin ese endpoint solo podemos seleccionar el ID para continuar la conversación, no reconstruir mensajes anteriores.
-      state.conversationId = id; state.messages = []; $('messages').replaceChildren(); showWelcome(true); closeSidebar();
-      document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
-      toast('Conversación seleccionada. Los mensajes previos requieren un endpoint de lectura.');
-      // Al enviar el siguiente mensaje, se manda este conversation_id a POST /chat.
+      state.conversationId = String(id);
+      closeSidebar();
+      state.messages = [];
+      $('messages').replaceChildren();
+      showWelcome(false);
+      document.querySelectorAll('.history-item').forEach(el => el.classList.toggle('active', el.dataset.id === state.conversationId));
+      updateConversationHeading();
+      try {
+        const data = await apiFetch(`${API.conversations}/${encodeURIComponent(state.conversationId)}/messages`);
+        const messages = Array.isArray(data) ? data : (data.messages ?? data.items ?? []);
+        state.messages = messages
+          .filter(item => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+          .map(item => ({ role: item.role, content: item.content }));
+        $('messages').replaceChildren();
+        if (!state.messages.length) {
+          showWelcome(true);
+        } else {
+          showWelcome(false);
+          for (const item of state.messages) appendMessage(item.content, item.role, { restoring: true });
+          saveCurrentConversation();
+          scrollToBottom(false);
+        }
+      } catch (error) {
+        const restored = restoreConversationMessages(state.conversationId);
+        if (!restored) {
+          showWelcome(true);
+          toast(`No pude recuperar los mensajes del servidor: ${error.message}`);
+        } else {
+          toast('Se mostraron los mensajes guardados en este navegador.');
+        }
+      }
     }
-    async function deleteConversation(id) {
-      if (!confirm('¿Eliminar esta conversación y sus mensajes guardados? Esta acción no se puede deshacer.')) return;
+    async function hideConversation(id) {
+      if (!confirm('¿Eliminar esta conversación y sus mensajes guardados en el servidor? Esta acción no se puede deshacer.')) return;
       try {
         await apiFetch(`${API.conversations}/${encodeURIComponent(id)}`, { method: 'DELETE' });
-        if (state.conversationId === id) resetChat();
-        await loadConversations(false); toast('Conversación eliminada.');
-      } catch (error) { toast(`No se pudo borrar: ${error.message}`); }
+        const allMessages = readLocal(STORAGE_MESSAGES, {}); delete allMessages[id]; writeLocal(STORAGE_MESSAGES, allMessages);
+        const meta = readLocal(STORAGE_META, {}); delete meta[id]; writeLocal(STORAGE_META, meta);
+        setConversationHidden(id, true);
+        if (String(state.conversationId) === String(id)) resetChat();
+        await loadConversations(false);
+        toast('Conversación eliminada.');
+      } catch (error) {
+        toast(`No se pudo eliminar: ${error.message}`);
+      }
     }
     async function deleteCurrentConversation() {
-      if (!state.conversationId) { resetChat(); toast('Chat nuevo listo.'); return; }
-      await deleteConversation(state.conversationId);
+      if (!state.conversationId || !state.messages.length) { resetChat(); toast('Chat nuevo listo.'); return; }
+      await hideConversation(state.conversationId);
     }
     function memoryIdOf(item) { return item.id ?? item.memory_id ?? item.id_memoria ?? item.uuid ?? null; }
     function memoryTextOf(item) { return item.content ?? item.contenido ?? item.memory ?? item.text ?? item.recuerdo ?? item.value ?? JSON.stringify(item); }
@@ -417,8 +541,7 @@
     async function addMemory(event) {
       event.preventDefault(); const input = $('memory-input'); const content = input.value.trim(); if (!content) return;
       try {
-        // Este cuerpo usa {content}. Si tu endpoint POST /memory exige otra clave, cámbiala aquí.
-        await apiFetch(API.memory, { method: 'POST', body: JSON.stringify({ content }) });
+        await apiFetch(API.memory, { method: 'POST', body: JSON.stringify({ content, category: 'general' }) });
         input.value = ''; await loadMemories(); toast('Recuerdo guardado.');
       } catch (error) { toast(`No se pudo guardar: ${error.message}`); }
     }
@@ -444,6 +567,11 @@
     $('refresh-history-btn').addEventListener('click', () => loadConversations(true));
     document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => sendMessage(button.dataset.prompt)));
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMemory(); closeSidebar(); } });
+    resetChat();
+    apiFetch(`${API_BASE}/health`).then(data => {
+      $('connection-status').textContent = data.provider_configured ? 'Lista para conversar' : 'Falta configurar la API';
+      if (!data.provider_configured) toast('Configura GROQ_API_KEY en el servidor para activar el chat.');
+    }).catch(() => { $('connection-status').textContent = 'Servidor sin conexión'; });
     loadConversations(false);
   </script>
 </body>

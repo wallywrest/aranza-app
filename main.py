@@ -7,7 +7,7 @@ from typing import Optional
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -32,6 +32,7 @@ DATABASE_PATH = str(
 HISTORY_LIMIT = int(os.getenv("ARANZA_HISTORY_LIMIT", "16"))
 MAX_TOKENS = int(os.getenv("ARANZA_MAX_TOKENS", "1200"))
 TEMPERATURE = float(os.getenv("ARANZA_TEMPERATURE", "0.75"))
+ACCESS_TOKEN = os.getenv("ARANZA_ACCESS_TOKEN", "").strip()
 
 ALLOWED_ORIGINS = [
     origin.strip()
@@ -120,6 +121,10 @@ ESTILO CONVERSACIONAL
 - No fuerces errores gramaticales para parecer humana.
 - Evita exagerar la jerga o repetir las mismas expresiones constantemente.
 - Adapta tu tono al tema, la confianza y el estado de la conversación.
+- No conviertas cada respuesta en una lista ni cada charla en un análisis profundo.
+- Puedes responder con una frase breve cuando eso sea suficiente; desarrolla las ideas cuando el tema lo merezca.
+- Usa preguntas de seguimiento solo cuando sean necesarias para comprender o avanzar, no como cierre automático.
+- Evita empezar siempre igual y evita repetir la misma estructura de respuesta.
 
 FORMA DE ESCUCHAR
 
@@ -328,15 +333,32 @@ def borrar_todas_las_memorias():
 
 
 def listar_conversaciones():
+    # El título se deriva del primer mensaje del usuario, por lo que no hace
+    # falta una migración de base de datos para chats ya existentes.
     with conectar_db() as conn:
         filas = conn.execute("""
             SELECT
-                conversation_id,
-                MAX(created_at) AS updated_at,
-                COUNT(*) AS message_count
-            FROM mensajes
-            GROUP BY conversation_id
-            ORDER BY MAX(id) DESC
+                m.conversation_id,
+                MAX(m.created_at) AS updated_at,
+                COUNT(*) AS message_count,
+                COALESCE(
+                    (SELECT substr(trim(first_user.content), 1, 64)
+                     FROM mensajes AS first_user
+                     WHERE first_user.conversation_id = m.conversation_id
+                       AND first_user.role = 'user'
+                     ORDER BY first_user.id ASC LIMIT 1),
+                    'Conversación nueva'
+                ) AS title,
+                COALESCE(
+                    (SELECT substr(trim(last_message.content), 1, 120)
+                     FROM mensajes AS last_message
+                     WHERE last_message.conversation_id = m.conversation_id
+                     ORDER BY last_message.id DESC LIMIT 1),
+                    ''
+                ) AS preview
+            FROM mensajes AS m
+            GROUP BY m.conversation_id
+            ORDER BY MAX(m.id) DESC
         """).fetchall()
 
     return [dict(fila) for fila in filas]
@@ -375,6 +397,18 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Authorization"]
 )
+
+
+def verificar_acceso(authorization: Optional[str] = Header(default=None)):
+    """Protege los datos personales si se configura ARANZA_ACCESS_TOKEN."""
+    if not ACCESS_TOKEN:
+        return
+    esperado = f"Bearer {ACCESS_TOKEN}"
+    if authorization != esperado:
+        raise HTTPException(
+            status_code=401,
+            detail="Se requiere la clave de acceso configurada para Aranza."
+        )
 
 
 # ============================================================
@@ -423,7 +457,7 @@ async def mostrar_pagina_principal():
 
 
 @app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest, _: None = Depends(verificar_acceso)):
     conversation_id = request.conversation_id or str(uuid4())
 
     if client is None:
@@ -508,18 +542,16 @@ async def chat_endpoint(request: ChatRequest):
     except HTTPException:
         raise
 
-    except Exception:
-        logger.exception(
-            "Error al generar una respuesta de Aranza."
-        )
-
+    except Exception as exc:
+        logger.exception("Error al generar una respuesta de Aranza.")
+        # El detalle técnico queda en los logs del servidor, no se expone al navegador.
         raise HTTPException(
             status_code=502,
             detail=(
-                "No se pudo generar la respuesta. "
-                "Revisa la conexión, la clave API y el modelo configurado."
+                "No se pudo generar la respuesta. Revisa la conexión, la clave API, "
+                "el saldo/límite de Groq y el modelo configurado."
             )
-        )
+        ) from exc
 
 
 # ============================================================
@@ -527,14 +559,14 @@ async def chat_endpoint(request: ChatRequest):
 # ============================================================
 
 @app.get("/memory")
-async def listar_memorias():
+async def listar_memorias(_: None = Depends(verificar_acceso)):
     return {
         "memories": obtener_memorias(limite=200)
     }
 
 
 @app.post("/memory")
-async def crear_memoria(request: MemoryRequest):
+async def crear_memoria(request: MemoryRequest, _: None = Depends(verificar_acceso)):
     memory_id = guardar_memoria(
         request.content.strip(),
         request.category.strip() or "general"
@@ -547,7 +579,7 @@ async def crear_memoria(request: MemoryRequest):
 
 
 @app.delete("/memory/{memory_id}")
-async def eliminar_memoria(memory_id: int):
+async def eliminar_memoria(memory_id: int, _: None = Depends(verificar_acceso)):
     eliminado = borrar_memoria(memory_id)
 
     if not eliminado:
@@ -563,7 +595,7 @@ async def eliminar_memoria(memory_id: int):
 
 
 @app.delete("/memory")
-async def eliminar_todas_las_memorias():
+async def eliminar_todas_las_memorias(_: None = Depends(verificar_acceso)):
     borrar_todas_las_memorias()
 
     return {
@@ -576,17 +608,17 @@ async def eliminar_todas_las_memorias():
 # ============================================================
 
 @app.get("/conversations")
-async def conversaciones():
+async def conversaciones(_: None = Depends(verificar_acceso)):
     return {
         "conversations": listar_conversaciones()
     }
 @app.get("/conversations/{conversation_id}/messages")
-async def obtener_mensajes_conversacion(conversation_id: str):
+async def obtener_mensajes_conversacion(conversation_id: str, _: None = Depends(verificar_acceso)):
     mensajes = obtener_historial_completo(conversation_id)
     return {"messages": mensajes}
 
 @app.delete("/conversations/{conversation_id}")
-async def eliminar_conversacion(conversation_id: str):
+async def eliminar_conversacion(conversation_id: str, _: None = Depends(verificar_acceso)):
     eliminado = borrar_conversacion(conversation_id)
 
     if not eliminado:
@@ -610,5 +642,6 @@ async def health():
     return {
         "status": "ok",
         "model": GROQ_MODEL,
-        "provider_configured": client is not None
+        "provider_configured": client is not None,
+        "access_protected": bool(ACCESS_TOKEN)
     }
