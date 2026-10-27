@@ -1,13 +1,21 @@
 import os
 import logging
 import sqlite3
+import hmac
+import hashlib
+import base64
+import json
+import time
+import secrets
+from collections import defaultdict, deque
+from threading import Lock
 from pathlib import Path
 from uuid import uuid4
 from typing import Optional
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -32,7 +40,19 @@ DATABASE_PATH = str(
 HISTORY_LIMIT = int(os.getenv("ARANZA_HISTORY_LIMIT", "16"))
 MAX_TOKENS = int(os.getenv("ARANZA_MAX_TOKENS", "1200"))
 TEMPERATURE = float(os.getenv("ARANZA_TEMPERATURE", "0.75"))
-ACCESS_TOKEN = os.getenv("ARANZA_ACCESS_TOKEN", "").strip()
+
+# La contraseña y la clave de firma se configuran como secretos en Render.
+# No se guardan en el HTML ni en el repositorio.
+ARANZA_PASSWORD = os.getenv("ARANZA_PASSWORD", "").strip()
+ARANZA_SESSION_SECRET = os.getenv("ARANZA_SESSION_SECRET", "").strip()
+SESSION_TTL_SECONDS = int(os.getenv("ARANZA_SESSION_TTL_SECONDS", str(12 * 60 * 60)))
+LOGIN_MAX_ATTEMPTS = int(os.getenv("ARANZA_LOGIN_MAX_ATTEMPTS", "5"))
+LOGIN_WINDOW_SECONDS = int(os.getenv("ARANZA_LOGIN_WINDOW_SECONDS", "900"))
+
+# Limitador en memoria para frenar intentos repetidos contra el PIN de seis dígitos.
+# En un despliegue de una sola instancia funciona como protección adicional.
+_login_attempts = defaultdict(deque)
+_login_lock = Lock()
 
 ALLOWED_ORIGINS = [
     origin.strip()
@@ -121,10 +141,6 @@ ESTILO CONVERSACIONAL
 - No fuerces errores gramaticales para parecer humana.
 - Evita exagerar la jerga o repetir las mismas expresiones constantemente.
 - Adapta tu tono al tema, la confianza y el estado de la conversación.
-- No conviertas cada respuesta en una lista ni cada charla en un análisis profundo.
-- Puedes responder con una frase breve cuando eso sea suficiente; desarrolla las ideas cuando el tema lo merezca.
-- Usa preguntas de seguimiento solo cuando sean necesarias para comprender o avanzar, no como cierre automático.
-- Evita empezar siempre igual y evita repetir la misma estructura de respuesta.
 
 FORMA DE ESCUCHAR
 
@@ -333,32 +349,15 @@ def borrar_todas_las_memorias():
 
 
 def listar_conversaciones():
-    # El título se deriva del primer mensaje del usuario, por lo que no hace
-    # falta una migración de base de datos para chats ya existentes.
     with conectar_db() as conn:
         filas = conn.execute("""
             SELECT
-                m.conversation_id,
-                MAX(m.created_at) AS updated_at,
-                COUNT(*) AS message_count,
-                COALESCE(
-                    (SELECT substr(trim(first_user.content), 1, 64)
-                     FROM mensajes AS first_user
-                     WHERE first_user.conversation_id = m.conversation_id
-                       AND first_user.role = 'user'
-                     ORDER BY first_user.id ASC LIMIT 1),
-                    'Conversación nueva'
-                ) AS title,
-                COALESCE(
-                    (SELECT substr(trim(last_message.content), 1, 120)
-                     FROM mensajes AS last_message
-                     WHERE last_message.conversation_id = m.conversation_id
-                     ORDER BY last_message.id DESC LIMIT 1),
-                    ''
-                ) AS preview
-            FROM mensajes AS m
-            GROUP BY m.conversation_id
-            ORDER BY MAX(m.id) DESC
+                conversation_id,
+                MAX(created_at) AS updated_at,
+                COUNT(*) AS message_count
+            FROM mensajes
+            GROUP BY conversation_id
+            ORDER BY MAX(id) DESC
         """).fetchall()
 
     return [dict(fila) for fila in filas]
@@ -386,7 +385,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Aranza Personal AI",
     description="Asistente personal con memoria controlada.",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan
 )
 
@@ -397,18 +396,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Authorization"]
 )
-
-
-def verificar_acceso(authorization: Optional[str] = Header(default=None)):
-    """Protege los datos personales si se configura ARANZA_ACCESS_TOKEN."""
-    if not ACCESS_TOKEN:
-        return
-    esperado = f"Bearer {ACCESS_TOKEN}"
-    if authorization != esperado:
-        raise HTTPException(
-            status_code=401,
-            detail="Se requiere la clave de acceso configurada para Aranza."
-        )
 
 
 # ============================================================
@@ -442,7 +429,100 @@ class MemoryRequest(BaseModel):
 
 
 # ============================================================
-# 7. ENDPOINT PRINCIPAL DE CHAT
+# 7. AUTENTICACIÓN
+# ============================================================
+
+class LoginRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def _session_secret() -> bytes:
+    # Si el secreto no está configurado, se usa uno aleatorio de esta ejecución.
+    # Eso invalida sesiones tras reiniciar y no permite iniciar sesión de forma
+    # permanente por accidente. En Render debe configurarse ARANZA_SESSION_SECRET.
+    secret = ARANZA_SESSION_SECRET or os.environ.get("ARANZA_EPHEMERAL_SECRET", "")
+    if not secret:
+        secret = secrets.token_urlsafe(48)
+        os.environ["ARANZA_EPHEMERAL_SECRET"] = secret
+    return secret.encode("utf-8")
+
+
+def crear_token_sesion() -> str:
+    payload = json.dumps({"exp": int(time.time()) + SESSION_TTL_SECONDS, "nonce": secrets.token_urlsafe(12)}, separators=(",", ":")).encode("utf-8")
+    body = _b64url(payload)
+    signature = _b64url(hmac.new(_session_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    return f"{body}.{signature}"
+
+
+def token_valido(token: str) -> bool:
+    try:
+        body, signature = token.split(".", 1)
+        expected = _b64url(hmac.new(_session_secret(), body.encode("ascii"), hashlib.sha256).digest())
+        if not hmac.compare_digest(signature, expected):
+            return False
+        padded = body + "=" * (-len(body) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+        return isinstance(payload.get("exp"), int) and payload["exp"] > int(time.time())
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return False
+
+
+def verificar_acceso(authorization: Optional[str] = Header(default=None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Inicia sesión para acceder a Aranza.")
+    token = authorization[7:].strip()
+    if not token_valido(token):
+        raise HTTPException(status_code=401, detail="Tu sesión expiró. Vuelve a iniciar sesión.")
+
+
+def _cliente_id(request: Request) -> str:
+    # No se confía en X-Forwarded-For, que puede falsificarse si no hay proxy confiable.
+    return request.client.host if request.client else "unknown"
+
+
+def comprobar_limite_login(client_id: str):
+    now = time.time()
+    with _login_lock:
+        attempts = _login_attempts[client_id]
+        while attempts and now - attempts[0] > LOGIN_WINDOW_SECONDS:
+            attempts.popleft()
+        if len(attempts) >= LOGIN_MAX_ATTEMPTS:
+            wait = max(1, int(LOGIN_WINDOW_SECONDS - (now - attempts[0])))
+            raise HTTPException(status_code=429, detail=f"Demasiados intentos. Espera aproximadamente {max(1, wait // 60)} minuto(s) antes de volver a intentar.")
+
+
+def registrar_fallo_login(client_id: str):
+    with _login_lock:
+        _login_attempts[client_id].append(time.time())
+
+
+@app.post("/login")
+async def iniciar_sesion(request: Request, body: LoginRequest):
+    if not ARANZA_PASSWORD:
+        logger.error("ARANZA_PASSWORD no está configurada.")
+        raise HTTPException(status_code=503, detail="El acceso aún no está configurado en el servidor.")
+    client_id = _cliente_id(request)
+    comprobar_limite_login(client_id)
+    if not hmac.compare_digest(body.password, ARANZA_PASSWORD):
+        registrar_fallo_login(client_id)
+        # Mensaje genérico para no revelar detalles de configuración.
+        raise HTTPException(status_code=401, detail="La contraseña no es correcta.")
+    with _login_lock:
+        _login_attempts.pop(client_id, None)
+    return {"access_token": crear_token_sesion(), "token_type": "bearer", "expires_in": SESSION_TTL_SECONDS}
+
+
+@app.get("/session")
+async def comprobar_sesion(_: None = Depends(verificar_acceso)):
+    return {"authenticated": True}
+
+
+# ============================================================
+# 8. ENDPOINT PRINCIPAL DE CHAT
 # ============================================================
 
 @app.get("/")
@@ -542,16 +622,18 @@ async def chat_endpoint(request: ChatRequest, _: None = Depends(verificar_acceso
     except HTTPException:
         raise
 
-    except Exception as exc:
-        logger.exception("Error al generar una respuesta de Aranza.")
-        # El detalle técnico queda en los logs del servidor, no se expone al navegador.
+    except Exception:
+        logger.exception(
+            "Error al generar una respuesta de Aranza."
+        )
+
         raise HTTPException(
             status_code=502,
             detail=(
-                "No se pudo generar la respuesta. Revisa la conexión, la clave API, "
-                "el saldo/límite de Groq y el modelo configurado."
+                "No se pudo generar la respuesta. "
+                "Revisa la conexión, la clave API y el modelo configurado."
             )
-        ) from exc
+        )
 
 
 # ============================================================
@@ -643,5 +725,5 @@ async def health():
         "status": "ok",
         "model": GROQ_MODEL,
         "provider_configured": client is not None,
-        "access_protected": bool(ACCESS_TOKEN)
+        "access_protected": bool(ARANZA_PASSWORD)
     }
