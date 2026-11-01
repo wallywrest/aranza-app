@@ -80,3 +80,26 @@ def test_planifica_investigacion_con_lectura_de_fuentes():
     plan = planificar_herramientas("Investiga fuentes sobre energía solar")
     assert plan["tools"][0]["name"] == "web_research"
     assert plan["tools"][0]["status"] == "planned_not_executed"
+
+def test_no_busques_no_activa_busqueda_web():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("No busques fuentes ni noticias sobre el tema")
+    assert not any(item["name"] in {"web_search", "web_research"} for item in plan["tools"])
+
+
+def test_no_investigues_no_activa_investigacion():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("No quiero que investigues esto")
+    assert not any(item["name"] == "web_research" for item in plan["tools"])
+
+
+def test_peticion_afirmativa_si_activa_busqueda():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("Busca fuentes recientes sobre energía solar")
+    assert any(item["name"] == "web_search" for item in plan["tools"])
+
+
+def test_negacion_lejana_no_anula_peticion_afirmativa():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("No tengo tiempo, busca fuentes recientes sobre energía solar")
+    assert any(item["name"] == "web_search" for item in plan["tools"])
