@@ -69,7 +69,7 @@ def planificar_herramientas(mensaje: str) -> dict:
     candidatas: list[HerramientaPlaneada] = []
 
     if _intencion_afirmativa(
-        texto, r"\b(investiga|investigar|investigación|investigacion|compara fuentes|revisión bibliográfica|revision bibliografica)\b"
+        texto, r"\b(investiga|investigues|investiguen|investigando|investigar|investigación|investigacion|compara fuentes|revisión bibliográfica|revision bibliografica)\b"
     ):
         candidatas.append(HerramientaPlaneada(
             "web_research", "La solicitud requiere buscar fuentes y leer una muestra limitada de páginas públicas."
