@@ -103,3 +103,19 @@ def test_negacion_lejana_no_anula_peticion_afirmativa():
     from coordinador import planificar_herramientas
     plan = planificar_herramientas("No tengo tiempo, busca fuentes recientes sobre energía solar")
     assert any(item["name"] == "web_search" for item in plan["tools"])
+
+
+def test_negacion_con_verbo_buscar_no_activa_busqueda():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("No quiero que busques fuentes sobre esto")
+    assert not any(item["name"] in {"web_search", "web_research"} for item in plan["tools"])
+
+
+def test_negacion_lejana_en_otra_clausula_no_cancela_busqueda():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("No tengo tiempo, pero busca fuentes recientes")
+    assert any(item["name"] == "web_search" for item in plan["tools"])
+
+
+def test_peticion_investigues_se_clasifica_como_analisis():
+    assert clasificar_tarea("Investígues las causas del problema")[0] == "analysis"
