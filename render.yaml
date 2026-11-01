@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: proyecto-aranza
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    disk:
+      name: aranza-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: ARANZA_DB_PATH
+        value: /var/data/aranza.sqlite3
+      - key: ARANZA_REQUIRE_PERSISTENT_STORAGE
+        value: "true"
+      - key: ARANZA_SESSION_SECRET
+        generateValue: true
+      - key: ARANZA_PASSWORD
+        sync: false
+      - key: ARANZA_USERNAME
+        sync: false
+      - key: ARANZA_ALLOWED_ORIGINS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b

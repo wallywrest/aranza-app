@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Solicitar CAMERA únicamente cuando el usuario elija abrir la cámara. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Solicitar RECORD_AUDIO únicamente al iniciar una grabación voluntaria. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <application
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:label="Aranza AI">
+        <!-- Capacitor genera/completa la Activity al crear la plataforma Android. -->
+    </application>
+</manifest>

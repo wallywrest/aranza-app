@@ -1,0 +1,20 @@
+{
+  "name": "aranza-ai-mobile",
+  "version": "1.80.0",
+  "private": true,
+  "description": "Contenedor Android progresivo para Aranza AI",
+  "scripts": {
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "cap:add:android": "cap add android",
+    "cap:doctor": "cap doctor"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "typescript": "^5.9.3"
+  }
+}

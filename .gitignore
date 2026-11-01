@@ -1,0 +1,46 @@
+
+# ==============================
+# ARANZA - ARCHIVOS EXCLUIDOS
+# ==============================
+
+# Node.js
+node_modules/
+
+# Android local y archivos de firma
+android/
+*.keystore
+*.jks
+local.properties
+
+# Variables privadas y secretos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Bases de datos y respaldos locales
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-journal
+*.bak
+
+# Archivos temporales
+*.log
+*.tmp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
