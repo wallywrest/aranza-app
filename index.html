@@ -483,15 +483,20 @@
         return `${lead}\n${token}\n`;
       });
       const renderInline = (value) => {
-        let out = value;
-        out = out.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+        // Protect inline code before parsing other syntax: Markdown markers inside code stay literal.
+        const codeSpans = [];
+        let out = value.replace(/`([^`\n]+)`/g, (_, code) => {
+          const token = `@@CODESPAN${codeSpans.length}@@`;
+          codeSpans.push(`<code>${code}</code>`);
+          return token;
+        });
         out = out.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => `<img class="md-image" src="${escapeHTML(url)}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer"${title ? ` title="${title}"` : ''}>`);
         out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)/g, (_, label, url, title) => `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ''}>${label}</a>`);
         out = out.replace(/&lt;u&gt;([\s\S]*?)&lt;\/u&gt;/gi, '<u>$1</u>');
         out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/__(.+?)__/g, '<strong>$1</strong>');
         out = out.replace(/~~(.+?)~~/g, '<del>$1</del>');
         out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_/g, '$1<em>$2</em>');
-        return out;
+        return out.replace(/@@CODESPAN(\d+)@@/g, (_, index) => codeSpans[Number(index)] || '');
       };
       const lines = text.split('\n');
       let html = '', paragraph = [], listType = null, quote = [];
