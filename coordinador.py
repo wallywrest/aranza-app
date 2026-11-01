@@ -12,6 +12,7 @@ from modelos import ProveedorModelo, proveedores_para_tarea
 
 _NEGACION_INMEDIATA = re.compile(
     r"(?:\bno\s+(?:(?:quiero|quisiera|necesito|deseo)\s+)?(?:que\s+)?"
+    r"(?:(?:busques?|busquen|investigues?|investiguen|buscando|investigando)\s+)?"
     r"|\b(?:nunca|jamás|jamas)\s+|\bsin\s+)$",
     flags=re.IGNORECASE,
 )
