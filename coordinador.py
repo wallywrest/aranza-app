@@ -40,7 +40,7 @@ def clasificar_tarea(mensaje: str) -> tuple[str, str]:
         return "math", "Se detectaron operaciones, unidades o conceptos matemáticos."
     if re.search(r"\b(código|codigo|programa|programar|debug|depura|error de python|javascript|sql|función en python|funcion en python|api|endpoint|stack trace)\b", texto):
         return "coding", "Se detectó una solicitud de programación o depuración."
-    if re.search(r"\b(analiza|analizar|compara|comparar|evalúa|evalua|investiga|investigar|argumenta|argumentar|causas|consecuencias|desglosa|razona)\b", texto):
+    if re.search(r"\b(analiza|analizar|compara|comparar|evalúa|evalua|investiga|investigues|investiguen|investigar|argumenta|argumentar|causas|consecuencias|desglosa|razona)\b", texto):
         return "analysis", "Se detectó una solicitud de análisis o comparación."
     if re.search(r"\b(redacta|escribe|reescribe|corrige|corrige el texto|correo|email|carta|poema|ensayo|resumen|traduce|traducción|traduccion)\b", texto):
         return "writing", "Se detectó una solicitud de escritura o edición."
