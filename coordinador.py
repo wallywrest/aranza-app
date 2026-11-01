@@ -10,15 +10,19 @@ from dataclasses import dataclass
 from modelos import ProveedorModelo, proveedores_para_tarea
 
 
-_NEGADORES = {"no", "nunca", "jamás", "jamas", "sin"}
+_NEGACION_INMEDIATA = re.compile(
+    r"(?:\bno\s+(?:(?:quiero|quisiera|necesito|deseo)\s+)?(?:que\s+)?"
+    r"|\b(?:nunca|jamás|jamas)\s+|\bsin\s+)$",
+    flags=re.IGNORECASE,
+)
 
 
 def _intencion_afirmativa(texto: str, patron: str) -> bool:
-    """Detecta una intención sin confundir una instrucción negada con una petición."""
+    """Limita la negación a la cláusula y al disparador inmediatamente posterior."""
     for match in re.finditer(patron, texto, flags=re.IGNORECASE):
         prefijo = texto[:match.start()]
-        palabras_previas = re.findall(r"[a-záéíóúñ]+", prefijo, flags=re.IGNORECASE)[-4:]
-        if not any(palabra.casefold() in _NEGADORES for palabra in palabras_previas):
+        clausula = re.split(r"[,;.!?\n]", prefijo)[-1]
+        if not _NEGACION_INMEDIATA.search(clausula):
             return True
     return False
 
@@ -64,11 +68,15 @@ def planificar_herramientas(mensaje: str) -> dict:
     texto = mensaje.lower().strip()
     candidatas: list[HerramientaPlaneada] = []
 
-    if re.search(r"\b(investiga|investigar|investigación|investigacion|compara fuentes|revisión bibliográfica|revision bibliografica)\b", texto):
+    if _intencion_afirmativa(
+        texto, r"\b(investiga|investigar|investigación|investigacion|compara fuentes|revisión bibliográfica|revision bibliografica)\b"
+    ):
         candidatas.append(HerramientaPlaneada(
             "web_research", "La solicitud requiere buscar fuentes y leer una muestra limitada de páginas públicas."
         ))
-    elif re.search(r"\b(busca|buscar|fuentes|referencias|actualidad|último|ultima|hoy|reciente|precio actual|noticias)\b", texto):
+    elif _intencion_afirmativa(
+        texto, r"\b(busca|buscar|fuentes|referencias|actualidad|último|ultima|hoy|reciente|precio actual|noticias)\b"
+    ):
         candidatas.append(HerramientaPlaneada(
             "web_search", "La solicitud parece requerir información externa o actualizada."
         ))
