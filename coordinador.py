@@ -9,6 +9,19 @@ import re
 from dataclasses import dataclass
 from modelos import ProveedorModelo, proveedores_para_tarea
 
+
+_NEGADORES = {"no", "nunca", "jamás", "jamas", "sin"}
+
+
+def _intencion_afirmativa(texto: str, patron: str) -> bool:
+    """Detecta una intención sin confundir una instrucción negada con una petición."""
+    for match in re.finditer(patron, texto, flags=re.IGNORECASE):
+        prefijo = texto[:match.start()]
+        palabras_previas = re.findall(r"[a-záéíóúñ]+", prefijo, flags=re.IGNORECASE)[-4:]
+        if not any(palabra.casefold() in _NEGADORES for palabra in palabras_previas):
+            return True
+    return False
+
 @dataclass(frozen=True)
 class RutaTarea:
     tarea: str
