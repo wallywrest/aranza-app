@@ -127,3 +127,16 @@ def test_peticion_investigando_se_clasifica_como_analisis():
 
 def test_peticion_investiguen_se_clasifica_como_analisis():
     assert clasificar_tarea("Investiguen las causas del problema")[0] == "analysis"
+
+def test_negacion_inmediata_no_activa_investigacion():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("No investigues las causas todavía")
+    assert not any(item["name"] == "web_research" for item in plan["tools"])
+
+
+def test_investigando_clasifica_como_analisis_y_planifica_investigacion():
+    from coordinador import planificar_herramientas
+    mensaje = "Estoy investigando las causas del problema"
+    assert clasificar_tarea(mensaje)[0] == "analysis"
+    plan = planificar_herramientas(mensaje)
+    assert any(item["name"] == "web_research" for item in plan["tools"])
