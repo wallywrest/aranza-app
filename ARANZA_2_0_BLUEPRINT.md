@@ -4,6 +4,17 @@
 **Rama de trabajo:** `aranza-v1-105-development`  
 **Producción:** no modificar ni desplegar desde esta rama sin revisión y autorización explícita.
 
+## Convención de versiones de Aranza 2.0
+
+Desde esta etapa, **Aranza 2.0** es el nombre de producto y la línea principal de desarrollo. La numeración histórica v1.x se conserva únicamente en nombres de ramas, archivos o despliegues heredados hasta completar su migración; no representa el objetivo del producto.
+
+- **Alpha 0.x:** implementación modular y validación interna de capacidades.
+- **Beta:** conjunto funcional integrado, pruebas de uso y corrección de regresiones.
+- **Release Candidate:** congelación de funciones, pruebas completas, seguridad, migraciones y reversión.
+- **2.0 estable:** publicación autorizada tras cumplir los criterios de aceptación.
+
+Cada entrega debe registrar alcance, archivos afectados, pruebas ejecutadas y pendientes. Ninguna etiqueta de versión implica que una capacidad esté implementada si no existe código y evidencia de validación.
+
 ## 1. Propósito
 
 Aranza 2.0 será una asistente personal modular, multimodal y adaptable. Su identidad conversacional estará inspirada únicamente en patrones observables de las conversaciones disponibles y en recuerdos que Melvis haya compartido. Aranza tendrá identidad propia: no es Hana, no habla por ella y no se atribuye pensamientos, experiencias o sentimientos humanos.
