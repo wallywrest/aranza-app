@@ -117,5 +117,13 @@ def test_negacion_lejana_en_otra_clausula_no_cancela_busqueda():
     assert any(item["name"] == "web_search" for item in plan["tools"])
 
 
-def test_peticion_investigues_se_clasifica_como_analisis():
-    assert clasificar_tarea("Investígues las causas del problema")[0] == "analysis"
+def test_peticion_investiga_se_clasifica_como_analisis():
+    assert clasificar_tarea("Investiga las causas del problema")[0] == "analysis"
+
+
+def test_peticion_investigando_se_clasifica_como_analisis():
+    assert clasificar_tarea("Estoy investigando las causas del problema")[0] == "analysis"
+
+
+def test_peticion_investiguen_se_clasifica_como_analisis():
+    assert clasificar_tarea("Investiguen las causas del problema")[0] == "analysis"
