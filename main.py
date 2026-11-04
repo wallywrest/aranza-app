@@ -602,6 +602,8 @@ def seleccionar_memorias_relevantes(consulta, memorias, limite=8):
 
     def quitar_duplicados(candidatas, max_items):
         """Evita inyectar recuerdos casi idénticos en el prompt del modelo."""
+        if max_items <= 0:
+            return []
         elegidas = []
         conjuntos = []
         textos = set()
