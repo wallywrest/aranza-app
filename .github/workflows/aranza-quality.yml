@@ -1,0 +1,37 @@
+name: Aranza 2.0 - calidad
+
+on:
+  push:
+    branches:
+      - aranza-v1-105-development
+  pull_request:
+    branches:
+      - aranza-v1-105-development
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coordinator-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias de pruebas
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+          python -m pip install -r requirements.txt
+
+      - name: Validar sintaxis del coordinador
+        run: python -m py_compile coordinador.py modelos.py
+
+      - name: Ejecutar pruebas del coordinador
+        run: python -m pytest -q test_coordinador.py
