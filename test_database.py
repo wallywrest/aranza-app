@@ -1,18 +1,20 @@
 """Pruebas de respaldo, restauración e integridad SQLite de Aranza."""
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from backup_db import backup_database, integrity_check, restore_database
 
 
 def create_db(path: Path, content: str):
-    with sqlite3.connect(path) as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS memorias (content TEXT NOT NULL)")
-        conn.execute("INSERT INTO memorias(content) VALUES (?)", (content,))
+    with closing(sqlite3.connect(path)) as conn:
+        with conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS memorias (content TEXT NOT NULL)")
+            conn.execute("INSERT INTO memorias(content) VALUES (?)", (content,))
 
 
 def read_contents(path: Path):
-    with sqlite3.connect(path) as conn:
+    with closing(sqlite3.connect(path)) as conn:
         return [row[0] for row in conn.execute("SELECT content FROM memorias ORDER BY rowid")]
 
 

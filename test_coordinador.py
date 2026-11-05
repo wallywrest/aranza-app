@@ -87,6 +87,27 @@ def test_no_busques_no_activa_busqueda_web():
     assert not any(item["name"] in {"web_search", "web_research"} for item in plan["tools"])
 
 
+def test_negaciones_explicitas_de_busqueda_no_planifican_web():
+    from coordinador import planificar_herramientas
+    mensajes = (
+        "No quiero que busques fuentes sobre esto",
+        "No necesito investigar este asunto",
+        "Jamás consultes noticias sobre el tema",
+        "Sin investigar, responde con lo que ya sabes",
+        "No voy a buscar fuentes todavía",
+        "No quiero investigación web sobre esto",
+    )
+    for mensaje in mensajes:
+        plan = planificar_herramientas(mensaje)
+        assert not any(item["name"] in {"web_search", "web_research"} for item in plan["tools"]), mensaje
+
+
+def test_negacion_no_cancela_una_busqueda_positiva_posterior():
+    from coordinador import planificar_herramientas
+    plan = planificar_herramientas("No investigues este tema; pero busca fuentes sobre el segundo")
+    assert any(item["name"] == "web_search" for item in plan["tools"])
+
+
 def test_no_investigues_no_activa_investigacion():
     from coordinador import planificar_herramientas
     plan = planificar_herramientas("No quiero que investigues esto")

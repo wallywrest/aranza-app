@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -7,13 +8,14 @@ import backup_db
 
 
 def make_db(path: Path, value: str) -> None:
-    with sqlite3.connect(path) as conn:
-        conn.execute("CREATE TABLE notes (value TEXT NOT NULL)")
-        conn.execute("INSERT INTO notes(value) VALUES (?)", (value,))
+    with closing(sqlite3.connect(path)) as conn:
+        with conn:
+            conn.execute("CREATE TABLE notes (value TEXT NOT NULL)")
+            conn.execute("INSERT INTO notes(value) VALUES (?)", (value,))
 
 
 def read_value(path: Path) -> str:
-    with sqlite3.connect(path) as conn:
+    with closing(sqlite3.connect(path)) as conn:
         return conn.execute("SELECT value FROM notes").fetchone()[0]
 
 
@@ -25,6 +27,19 @@ def test_backup_creates_integrity_checked_independent_copy(tmp_path):
     assert backup != source
     assert read_value(backup) == "original"
     backup_db.integrity_check(backup)
+
+
+def test_integrity_check_closes_sqlite_connection(tmp_path, monkeypatch):
+    database = tmp_path / "connection-lifecycle.sqlite3"
+    make_db(database, "test")
+    original_connect = sqlite3.connect
+    connection = original_connect(database)
+    monkeypatch.setattr(backup_db.sqlite3, "connect", lambda *args, **kwargs: connection)
+
+    backup_db.integrity_check(database)
+
+    with pytest.raises(sqlite3.ProgrammingError):
+        connection.execute("SELECT 1")
 
 
 def test_restore_preserves_safety_copy_and_restores_data(tmp_path):

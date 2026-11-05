@@ -3,6 +3,7 @@
 from __future__ import annotations
 import os
 import sys
+from pathlib import PurePosixPath
 from urllib.parse import urlparse
 
 
@@ -23,9 +24,15 @@ def revisar(env=None):
     parsed_origins = [urlparse(x) for x in origins]
     origins_valid = bool(origins) and len(set(origins)) == len(origins) and all(u.scheme == "https" and u.netloc and not u.path and not u.params and not u.query and not u.fragment for u in parsed_origins)
     add("ARANZA_ALLOWED_ORIGINS", origins_valid, "Orígenes HTTPS únicos y sin rutas." if origins_valid else "Indica orígenes HTTPS exactos y únicos, solo esquema + dominio; no uses *, rutas, parámetros ni localhost en producción.")
-    db = __import__("pathlib").Path(db_path).expanduser()
-    absolute_db = db.is_absolute()
-    persistent_mount = absolute_db and (str(db) == "/var/data" or str(db).startswith("/var/data/"))
+    # ARANZA_DB_PATH describe una ruta del contenedor Render (POSIX), aunque
+    # este preflight se ejecute desde Windows.
+    db = PurePosixPath(db_path)
+    mount = PurePosixPath("/var/data")
+    try:
+        relative_db = db.relative_to(mount)
+        persistent_mount = db.is_absolute() and ".." not in relative_db.parts
+    except ValueError:
+        persistent_mount = False
     add(
         "ARANZA_DB_PATH",
         persistent_mount,

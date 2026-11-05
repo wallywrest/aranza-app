@@ -108,3 +108,20 @@ def test_preflight_warns_on_default_username():
     results = {item["name"]: item for item in preparar_despliegue.revisar(env)}
     assert not results["ARANZA_USERNAME"]["ok"]
     assert results["ARANZA_USERNAME"]["severity"] == "WARNING"
+
+
+def test_preflight_rejects_windows_path_and_path_traversal():
+    base = {
+        "ARANZA_PASSWORD": "una-clave-segura-de-prueba",
+        "ARANZA_SESSION_SECRET": "x" * 48,
+        "ARANZA_ALLOWED_ORIGINS": "https://aranza.example.com",
+        "GROQ_API_KEY": "test-provider-key",
+    }
+    windows_path = preparar_despliegue.revisar({
+        **base, "ARANZA_DB_PATH": r"C:\var\data\aranza.sqlite3",
+    })
+    traversal_path = preparar_despliegue.revisar({
+        **base, "ARANZA_DB_PATH": "/var/data/../etc/aranza.sqlite3",
+    })
+    assert not next(item for item in windows_path if item["name"] == "ARANZA_DB_PATH")["ok"]
+    assert not next(item for item in traversal_path if item["name"] == "ARANZA_DB_PATH")["ok"]

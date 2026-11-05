@@ -15,6 +15,7 @@ import os
 import sqlite3
 import tempfile
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,10 +24,21 @@ _raw_db_path = Path(os.getenv("ARANZA_DB_PATH", str(BASE_DIR / "aranza.sqlite3")
 DB_PATH = _raw_db_path if _raw_db_path.is_absolute() else (BASE_DIR / _raw_db_path).resolve()
 
 
+@contextmanager
+def _sqlite_connection(path: Path):
+    """Aplica transacción y cierra siempre el handle SQLite al salir del bloque."""
+    connection = sqlite3.connect(str(path), timeout=10)
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
+
 def integrity_check(path: Path) -> None:
     if not path.is_file():
         raise FileNotFoundError(f"No existe la base de datos: {path}")
-    with sqlite3.connect(str(path), timeout=10) as conn:
+    with _sqlite_connection(path) as conn:
         result = conn.execute("PRAGMA integrity_check").fetchone()[0]
         if result != "ok":
             raise sqlite3.DatabaseError(f"La comprobación de integridad falló: {result}")
@@ -36,7 +48,7 @@ def inspect_database(source: Path = DB_PATH) -> dict:
     """Valida una base sin modificarla y devuelve metadatos operativos seguros."""
     source = Path(source).resolve()
     integrity_check(source)
-    with sqlite3.connect(str(source), timeout=10) as conn:
+    with _sqlite_connection(source) as conn:
         journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
         tables = conn.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
@@ -149,7 +161,7 @@ def backup_database(source: Path = DB_PATH, output_dir: Path | None = None) -> P
     destination = destination_dir / f"aranza_{stamp}.sqlite3"
     # SQLite backup API incluye correctamente las páginas confirmadas incluso
     # cuando la base usa WAL; copiar el archivo a mano no ofrece esa garantía.
-    with sqlite3.connect(str(source), timeout=10) as src, sqlite3.connect(str(destination), timeout=10) as dst:
+    with _sqlite_connection(source) as src, _sqlite_connection(destination) as dst:
         src.backup(dst)
     integrity_check(destination)
     _write_backup_manifest(destination, source)
@@ -163,10 +175,10 @@ def verify_restore(source: Path) -> dict:
     source_info = inspect_database(source)
     with tempfile.TemporaryDirectory(prefix="aranza-verify-restore-") as temp_dir:
         isolated = Path(temp_dir) / "restore_test.sqlite3"
-        with sqlite3.connect(str(source), timeout=10) as src, sqlite3.connect(str(isolated), timeout=10) as dst:
+        with _sqlite_connection(source) as src, _sqlite_connection(isolated) as dst:
             src.backup(dst)
         restored_info = inspect_database(isolated)
-        with sqlite3.connect(str(source), timeout=10) as src, sqlite3.connect(str(isolated), timeout=10) as restored:
+        with _sqlite_connection(source) as src, _sqlite_connection(isolated) as restored:
             source_tables = src.execute(
                 "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
             ).fetchall()
@@ -218,7 +230,7 @@ def restore_database(source: Path, destination: Path = DB_PATH) -> Path:
         )
         os.close(fd)
         temp_path = Path(temp_name)
-        with sqlite3.connect(str(source), timeout=10) as src, sqlite3.connect(str(temp_path), timeout=10) as dst:
+        with _sqlite_connection(source) as src, _sqlite_connection(temp_path) as dst:
             src.backup(dst)
         integrity_check(temp_path)
         # Aparta los sidecars de la base anterior antes de sustituirla. Si el

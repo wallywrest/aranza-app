@@ -17,13 +17,26 @@ _NEGACION_INMEDIATA = re.compile(
     flags=re.IGNORECASE,
 )
 
+_NEGACION_BUSQUEDA = re.compile(
+    r"\b(?:no|nunca|jam[aá]s|sin)\s+"
+    r"(?:(?:quiero|quisiera|necesito|deseo|prefiero)\s+|"
+    r"(?:(?:voy|vamos|pienso|pretendo)\s+a\s+))?"
+    r"(?:que\s+)?(?:busc\w*|busqu\w*|investig\w*|consult\w*|naveg\w*|"
+    r"realic\w*\s+(?:una\s+)?b[úu]squeda|investigaci[oó]n)\b",
+    flags=re.IGNORECASE,
+)
+
 
 def _intencion_afirmativa(texto: str, patron: str) -> bool:
     """Limita la negación a la cláusula y al disparador inmediatamente posterior."""
     for match in re.finditer(patron, texto, flags=re.IGNORECASE):
-        prefijo = texto[:match.start()]
-        clausula = re.split(r"[,;.!?\n]", prefijo)[-1]
-        if not _NEGACION_INMEDIATA.search(clausula):
+        prefijo = texto[:match.end()]
+        clausula = re.split(
+            r"[,;.!?\n]|\b(?:pero|sino|aunque|sin\s+embargo)\b",
+            prefijo,
+            flags=re.IGNORECASE,
+        )[-1]
+        if not _NEGACION_INMEDIATA.search(clausula) and not _NEGACION_BUSQUEDA.search(clausula):
             return True
     return False
 
