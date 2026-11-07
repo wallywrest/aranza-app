@@ -17,7 +17,7 @@ Trabajo limitado a SSRF/DNS rebinding, olvido de memoria, exportación y borrado
 - Pruebas enfocadas de Misión 04: 31 aprobadas.
 - Suite completa local: 360 aprobadas en Windows con Python 3.15.1.
 - compileall: aprobado para el árbol Python.
-- CI de Python 3.11 en Ubuntu y Windows queda pendiente de la publicación del commit.
+- GitHub Actions, run 12 para el commit e138f86: Ubuntu/Python 3.11 y Windows/Python 3.11 terminaron con éxito. [Ver ejecución](https://github.com/wallywrest/aranza-app/actions/runs/42343953100).
 - Aviso no bloqueante: Starlette informa que la integración TestClient con httpx está deprecada y recomienda httpx2.
 - Para el venv temporal se instalaron las dependencias de aplicación y pytest, omitiendo uvicorn[standard]: su instalación intentó compilar PyYAML sin Visual C++ Build Tools. La suite no importa ni ejecuta Uvicorn.
 - Pruebas de red usan resolvers/respuestas simuladas, sin consultar destinos privados reales ni hacer llamadas a usuarios.
@@ -33,4 +33,4 @@ Trabajo limitado a SSRF/DNS rebinding, olvido de memoria, exportación y borrado
 
 ## Estado
 
-Suite local y compileall aprobados; pendiente revisión final del diff y confirmación de CI Python 3.11 antes del cierre.
+Suite local, compileall y CI Python 3.11 en Ubuntu/Windows aprobados para el commit de código; esta actualización documental dispara una nueva validación CI.
