@@ -36,7 +36,11 @@ def test_analyze_file_calls_model_and_does_not_persist(monkeypatch):
         assert "Texto de prueba" in messages[1]["content"]
         return "Resumen de prueba", {"provider": "test", "model": "test-model"}
     monkeypatch.setattr(main, "completar_chat", fake_complete)
-    monkeypatch.setattr(main, "construir_prompt", lambda memories: "Sistema de prueba")
+    def fake_build_prompt(memories, account_id="owner"):
+        assert account_id == "owner"
+        return "Sistema de prueba"
+
+    monkeypatch.setattr(main, "construir_prompt", fake_build_prompt)
     monkeypatch.setattr(main, "obtener_memorias", lambda **kwargs: [])
     monkeypatch.setattr(main, "preparar_ruta", lambda instruction: type("Route", (), {"proveedores": []})())
     try:
