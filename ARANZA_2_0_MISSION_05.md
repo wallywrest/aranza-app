@@ -23,13 +23,14 @@ La Misión 05 implementa el pilar de conversaciones descrito en [ARANZA_2_0_MAST
 - Suite completa: **366 aprobadas**.
 - `compileall`: aprobado.
 - Comprobación de sintaxis JavaScript con Node: aprobada.
+- CI GitHub Actions para el commit de código `6a165ec`: **Ubuntu + Python 3.11 aprobado** y **Windows + Python 3.11 aprobado** ([workflow](https://github.com/wallywrest/aranza-app/actions/runs/43375951759)).
 - Prueba manual en navegador local con backend y modelos simulados: inicio de sesión, chat, búsqueda por título y por nombre de adjunto, archivo/reactivación, lectura del análisis desde el historial, eliminación remota y retorno a la pantalla de acceso al cerrar sesión.
 - Los datos de prueba, la base SQLite y el bytecode se mantuvieron en ubicaciones temporales. No se usaron proveedores reales.
 - Advertencia no bloqueante: Starlette depreca `TestClient` con `httpx` y recomienda `httpx2`.
 
 El navegador de prueba no permitió leer `localStorage` directamente desde el contexto de automatización. La limpieza al cerrar sesión queda cubierta por el código y las regresiones de contrato del frontend, aunque no se inspeccionó el contenido del almacenamiento después del cierre.
 
-La suite local usó Python 3.15.1 porque es el intérprete disponible en este equipo. CI con Python 3.11 en Windows y Ubuntu queda pendiente de publicar esta rama. No se hicieron pruebas en el Xiaomi ni se generó un APK.
+La suite local usó Python 3.15.1 porque es el intérprete disponible en este equipo. La compatibilidad de CI con Python 3.11 quedó validada en Windows y Ubuntu tras publicar la rama. No se hicieron pruebas en el Xiaomi ni se generó un APK.
 
 ## Límites y continuidad
 
