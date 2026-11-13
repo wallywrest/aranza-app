@@ -16,7 +16,7 @@ from typing import Annotated, Optional
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Depends, Request, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Header, Depends, Request, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, StringConstraints
@@ -384,11 +384,15 @@ def inicializar_db():
                 conversation_id TEXT NOT NULL,
                 title TEXT NOT NULL DEFAULT 'Nueva conversación',
                 pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0, 1)),
+                archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0, 1)),
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (account_id, conversation_id)
             )
         """)
+        conversation_columns = {row[1] for row in conn.execute("PRAGMA table_info(conversaciones)").fetchall()}
+        if "archived" not in conversation_columns:
+            conn.execute("ALTER TABLE conversaciones ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0, 1))")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_conversaciones_cuenta_orden ON conversaciones(account_id, pinned DESC, updated_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_memorias_cuenta_id ON memorias(account_id, id)")
         conn.execute("""
@@ -910,23 +914,29 @@ def borrar_todas_las_memorias(account_id="owner"):
         conn.execute("DELETE FROM decisiones_revision_memoria WHERE account_id = ?", (account_id,))
         conn.execute("DELETE FROM memorias WHERE account_id = ?", (account_id,))
 
-def listar_conversaciones(account_id="owner"):
+def listar_conversaciones(account_id="owner", archived=False, q=None):
     with conectar_db() as conn:
         # Compatibilidad con conversaciones creadas antes de esta migración.
         conn.execute("""INSERT OR IGNORE INTO conversaciones(account_id, conversation_id, title, updated_at)
                        SELECT account_id, conversation_id, 'Conversación anterior', MAX(created_at)
                        FROM mensajes WHERE account_id = ? GROUP BY account_id, conversation_id""", (account_id,))
-        filas = conn.execute("""SELECT m.conversation_id, c.title, c.pinned,
+        clauses = ["m.account_id = ?", "c.archived = ?"]
+        params = [account_id, int(bool(archived))]
+        query = (q or "").strip()
+        if query:
+            clauses.append("(c.title LIKE ? OR EXISTS (SELECT 1 FROM mensajes matched WHERE matched.account_id = c.account_id AND matched.conversation_id = c.conversation_id AND matched.content LIKE ?))")
+            params.extend((f"%{query}%", f"%{query}%"))
+        filas = conn.execute(f"""SELECT m.conversation_id, c.title, c.pinned, c.archived,
                                       MAX(m.created_at) AS updated_at, COUNT(*) AS message_count
                                FROM mensajes m JOIN conversaciones c
                                  ON c.account_id = m.account_id AND c.conversation_id = m.conversation_id
-                               WHERE m.account_id = ?
-                               GROUP BY m.conversation_id, c.title, c.pinned, c.updated_at
-                               ORDER BY c.pinned DESC, MAX(m.id) DESC""", (account_id,)).fetchall()
+                               WHERE {' AND '.join(clauses)}
+                               GROUP BY m.conversation_id, c.title, c.pinned, c.archived, c.updated_at
+                               ORDER BY c.pinned DESC, MAX(m.id) DESC""", params).fetchall()
     return [dict(fila) for fila in filas]
 
 
-def actualizar_metadatos_conversacion(conversation_id, account_id="owner", title=None, pinned=None):
+def actualizar_metadatos_conversacion(conversation_id, account_id="owner", title=None, pinned=None, archived=None):
     with conectar_db() as conn:
         existe = conn.execute("SELECT 1 FROM mensajes WHERE account_id = ? AND conversation_id = ? LIMIT 1", (account_id, conversation_id)).fetchone()
         if not existe:
@@ -936,14 +946,18 @@ def actualizar_metadatos_conversacion(conversation_id, account_id="owner", title
             conn.execute("UPDATE conversaciones SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE account_id = ? AND conversation_id = ?", (title.strip() or "Nueva conversación", account_id, conversation_id))
         if pinned is not None:
             conn.execute("UPDATE conversaciones SET pinned = ?, updated_at = CURRENT_TIMESTAMP WHERE account_id = ? AND conversation_id = ?", (int(pinned), account_id, conversation_id))
+        if archived is not None:
+            conn.execute("UPDATE conversaciones SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE account_id = ? AND conversation_id = ?", (int(archived), account_id, conversation_id))
         return True
 
 
 def borrar_conversacion(conversation_id, account_id="owner"):
     with conectar_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        exists = conn.execute("SELECT 1 FROM conversaciones WHERE account_id = ? AND conversation_id = ?", (account_id, conversation_id)).fetchone()
         cursor = conn.execute("DELETE FROM mensajes WHERE conversation_id = ? AND account_id = ?", (conversation_id, account_id))
         conn.execute("DELETE FROM conversaciones WHERE conversation_id = ? AND account_id = ?", (conversation_id, account_id))
-        return cursor.rowcount > 0
+        return cursor.rowcount > 0 or exists is not None
 
 
 # ============================================================
@@ -1008,6 +1022,7 @@ class ChatRequest(BaseModel):
 class ConversationMetadataRequest(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=80)
     pinned: Optional[bool] = None
+    archived: Optional[bool] = None
 
 
 class ResearchSaveRequest(BaseModel):
@@ -1258,6 +1273,15 @@ async def iniciar_sesion(request: Request, body: LoginRequest):
 @app.get("/session")
 async def comprobar_sesion(_: None = Depends(verificar_acceso)):
     return {"authenticated": True}
+
+
+@app.get("/account/identity")
+async def identidad_cuenta(principal: dict = Depends(verificar_acceso)):
+    with conectar_db() as conn:
+        row = conn.execute("SELECT account_id, username FROM cuentas WHERE account_id = ?", (principal["account_id"],)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=401, detail="La cuenta de esta sesión ya no está disponible.")
+    return {"account_id": row["account_id"], "username": row["username"]}
 
 
 @app.get("/profile")
@@ -1664,6 +1688,7 @@ def extraer_texto_archivo(nombre: str, contenido: bytes) -> str:
 async def analizar_archivo(
     file: UploadFile = File(...),
     instruction: str = Form(default="Resume el documento, identifica sus ideas principales y señala dudas o limitaciones."),
+    conversation_id: Optional[str] = Form(default=None, min_length=1, max_length=100),
     principal: dict = Depends(verificar_acceso),
 ):
     """Analiza un archivo en memoria; no conserva el archivo ni su texto extraído."""
@@ -1715,6 +1740,10 @@ async def analizar_archivo(
             status_code=503,
             detail="Aranza no pudo conectar con los modelos configurados para analizar el archivo.",
         ) from exc
+    history_saved = False
+    if conversation_id:
+        guardar_intercambio(conversation_id, f"Adjunto analizado: {nombre}\nInstrucción: {instruccion}", respuesta, account_id=principal["account_id"])
+        history_saved = True
 
     return {
         "filename": nombre,
@@ -1722,6 +1751,7 @@ async def analizar_archivo(
         "characters_extracted": len(texto),
         "truncated": len(texto) >= MAX_DOCUMENT_CHARS,
         "stored": False,
+        "history_saved": history_saved,
         "provider": modelo_usado["provider"],
         "model": modelo_usado["model"],
     }
@@ -1757,6 +1787,7 @@ def validar_imagen(nombre: str, contenido: bytes, content_type: str) -> str:
 async def analizar_imagen(
     file: UploadFile = File(...),
     instruction: str = Form(default="Describe la imagen objetivamente y señala cualquier incertidumbre."),
+    conversation_id: Optional[str] = Form(default=None, min_length=1, max_length=100),
     principal: dict = Depends(verificar_acceso),
 ):
     """Analiza una imagen en memoria con un proveedor de visión configurado por separado."""
@@ -1784,7 +1815,11 @@ async def analizar_imagen(
         respuesta, modelo_usado = await completar_vision(mensajes, temperatura=TEMPERATURE, max_tokens=MAX_TOKENS)
     except ErrorEnrutamientoModelo as exc:
         raise HTTPException(status_code=503, detail="No hay un proveedor de visión configurado o disponible. Configura ARANZA_VISION_PROVIDER, ARANZA_VISION_BASE_URL, ARANZA_VISION_API_KEY y ARANZA_VISION_MODEL.") from exc
-    return {"filename": nombre, "response": respuesta, "stored": False, "provider": modelo_usado["provider"], "model": modelo_usado["model"]}
+    history_saved = False
+    if conversation_id:
+        guardar_intercambio(conversation_id, f"Imagen analizada: {nombre}\nInstrucción: {instruccion}", respuesta, account_id=principal["account_id"])
+        history_saved = True
+    return {"filename": nombre, "response": respuesta, "stored": False, "history_saved": history_saved, "provider": modelo_usado["provider"], "model": modelo_usado["model"]}
 
 
 @app.post("/tools/web-search")
@@ -2593,7 +2628,7 @@ async def exportar_datos(principal: dict = Depends(verificar_acceso)):
             ORDER BY conversation_id, id
         """, (account_id,)).fetchall()
         metadatos = conn.execute("""
-            SELECT conversation_id, title, pinned, created_at, updated_at
+            SELECT conversation_id, title, pinned, archived, created_at, updated_at
             FROM conversaciones WHERE account_id = ?
             ORDER BY pinned DESC, updated_at DESC
         """, (account_id,)).fetchall()
@@ -2927,8 +2962,8 @@ async def eliminar_investigacion(research_id: str, principal: dict = Depends(ver
 
 
 @app.get("/conversations")
-async def conversaciones(principal: dict = Depends(verificar_acceso)):
-    return {"conversations": listar_conversaciones(account_id=principal["account_id"])}
+async def conversaciones(q: Optional[str] = Query(default=None, max_length=120), archived: bool = False, principal: dict = Depends(verificar_acceso)):
+    return {"conversations": listar_conversaciones(account_id=principal["account_id"], archived=archived, q=q)}
 @app.get("/conversations/{conversation_id}/messages")
 async def obtener_mensajes_conversacion(conversation_id: str, principal: dict = Depends(verificar_acceso)):
     mensajes = obtener_historial_completo(conversation_id, account_id=principal["account_id"])
@@ -2936,10 +2971,10 @@ async def obtener_mensajes_conversacion(conversation_id: str, principal: dict = 
 
 @app.patch("/conversations/{conversation_id}")
 async def actualizar_conversacion(conversation_id: str, request: ConversationMetadataRequest, principal: dict = Depends(verificar_acceso)):
-    if request.title is None and request.pinned is None:
-        raise HTTPException(status_code=400, detail="Indica un título o el estado de fijado.")
+    if request.title is None and request.pinned is None and request.archived is None:
+        raise HTTPException(status_code=400, detail="Indica el título, el estado de fijado o el archivado.")
     actualizado = actualizar_metadatos_conversacion(
-        conversation_id, account_id=principal["account_id"], title=request.title, pinned=request.pinned
+        conversation_id, account_id=principal["account_id"], title=request.title, pinned=request.pinned, archived=request.archived
     )
     if not actualizado:
         raise HTTPException(status_code=404, detail="No se encontró esa conversación.")

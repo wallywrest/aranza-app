@@ -6,7 +6,8 @@ BASE = Path(__file__).parent
 def test_drafts_are_scoped_by_account_and_conversation():
     html = (BASE / 'index.html').read_text(encoding="utf-8")
     assert "const DRAFT_PREFIX = 'aranza_draft_v1:'" in html
-    assert 'encodeURIComponent(account)' in html
+    assert 'const account = state.accountId || \'anonymous\'' in html
+    assert 'function scopedStorageKey(key)' in html
     assert 'encodeURIComponent(String(id || \'nuevo\'))' in html
 
 
@@ -27,3 +28,21 @@ def test_network_status_is_visible_and_reacts_to_connection_changes():
     assert 'id="network-status"' in html
     assert "window.addEventListener('online', updateNetworkStatus)" in html
     assert "window.addEventListener('offline', updateNetworkStatus)" in html
+
+
+def test_logout_purges_aranza_local_data_and_conversation_delete_calls_server():
+    html = (BASE / 'index.html').read_text(encoding="utf-8")
+    assert "function purgeAranzaLocalData()" in html
+    assert "clearBrowserSession(); showLogin('Sesión cerrada.')" in html
+    assert "method: 'DELETE'" in html
+    assert "Eliminar permanentemente esta conversación" in html
+
+
+def test_conversation_search_archive_and_attachment_history_are_connected_to_api():
+    html = (BASE / 'index.html').read_text(encoding="utf-8")
+    assert 'id="history-search"' in html
+    assert 'id="history-archive-toggle"' in html
+    assert "params.set('q', query)" in html
+    assert "params.set('archived', 'true')" in html
+    assert "form.append('conversation_id', state.conversationId)" in html
+    assert "async function syncCurrentConversationFromServer()" in html

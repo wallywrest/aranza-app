@@ -2,6 +2,10 @@
 import main
 
 
+def setup_function():
+    main.inicializar_db()
+
+
 def test_first_message_creates_persistent_title_and_conversation():
     cid = "meta-title-test"
     main.guardar_intercambio(cid, "Preparar exposición de gestión industrial", "Vamos a organizarla.", "meta-user-a")
@@ -38,5 +42,24 @@ def test_conversation_metadata_is_account_scoped():
 def test_deleting_conversation_also_deletes_metadata():
     main.guardar_intercambio("meta-delete", "Borrar esto", "Respuesta", "meta-delete-user")
     assert main.borrar_conversacion("meta-delete", "meta-delete-user")
+    assert main.obtener_historial_completo("meta-delete", "meta-delete-user") == []
     with main.conectar_db() as conn:
         assert conn.execute("SELECT 1 FROM conversaciones WHERE account_id=? AND conversation_id=?", ("meta-delete-user", "meta-delete")).fetchone() is None
+
+
+def test_archive_and_search_are_persistent_and_account_scoped():
+    main.guardar_intercambio("meta-search-same-id", "Needle phrase for account A", "Private result A", "meta-search-account-a")
+    main.guardar_intercambio("meta-search-same-id", "Different private text", "Private result B", "meta-search-account-b")
+
+    active_a = main.listar_conversaciones("meta-search-account-a", q="Needle phrase")
+    active_b = main.listar_conversaciones("meta-search-account-b", q="Needle phrase")
+    assert [row["conversation_id"] for row in active_a] == ["meta-search-same-id"]
+    assert active_b == []
+    assert active_a[0]["archived"] == 0
+
+    assert main.actualizar_metadatos_conversacion("meta-search-same-id", "meta-search-account-a", archived=True)
+    assert main.listar_conversaciones("meta-search-account-a", q="Needle phrase") == []
+    archived_a = main.listar_conversaciones("meta-search-account-a", archived=True, q="Needle phrase")
+    assert len(archived_a) == 1 and archived_a[0]["archived"] == 1
+    assert main.listar_conversaciones("meta-search-account-b")[0]["archived"] == 0
+    assert main.actualizar_metadatos_conversacion("meta-search-same-id", "meta-search-account-a", archived=False)

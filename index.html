@@ -53,6 +53,9 @@
     .new-chat { display: flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid rgba(154,166,255,.26); border-radius: 14px; padding: 12px; cursor: pointer; font-weight: 600; background: linear-gradient(135deg, rgba(123,139,240,.22), rgba(123,139,240,.08)); transition: transform .2s, background .2s, border-color .2s; }
     .new-chat:hover { transform: translateY(-1px); background: rgba(123,139,240,.23); border-color: rgba(154,166,255,.5); }
     .section-label { display: flex; align-items: center; justify-content: space-between; padding: 0 8px; color: #8493b7; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+    .history-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+    .history-controls input { min-width: 0; width: 100%; border: 1px solid var(--line); border-radius: 10px; background: rgba(7,13,26,.55); color: var(--text); padding: 9px 10px; font-size: 11px; }
+    .history-filter { border: 1px solid var(--line); border-radius: 10px; background: rgba(123,139,240,.1); color: #dce2ff; padding: 7px 9px; cursor: pointer; font-size: 10px; white-space: nowrap; }
     .history-list { display: flex; flex-direction: column; gap: 5px; overflow: auto; min-height: 80px; flex: 1; padding-right: 2px; }
     .history-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 11px 10px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: #b9c4df; cursor: pointer; text-align: left; font-size: 12px; transition: background .18s, color .18s; }
     .history-item:hover { background: rgba(255,255,255,.04); color: white; }
@@ -244,13 +247,14 @@
       </div>
       <button class="new-chat" id="new-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg> Nuevo chat</button>
       <div class="section-label"><span>Conversaciones</span><span id="history-count">0</span></div>
+      <div class="history-controls"><input id="history-search" type="search" maxlength="120" placeholder="Buscar conversaciones…" aria-label="Buscar en tus conversaciones"><button class="history-filter" id="history-archive-toggle" type="button">Ver archivadas</button></div>
       <div class="history-list" id="history-list"><div class="empty-state">Tus conversaciones aparecerán aquí.</div></div>
       <div class="sidebar-bottom">
         <button class="side-action" id="research-library-btn"><span aria-hidden="true">▤</span> Biblioteca de investigaciones</button>
         <button class="side-action" id="memory-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v18M5 7h14M5 17h14M7 3v4m10-4v4M7 17v4m10-4v4" stroke-linecap="round"/><circle cx="12" cy="12" r="2.5"/></svg> Memoria de Aranza</button>
         <button class="side-action" id="change-username-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M5 20c.8-4 3-6 7-6s6.2 2 7 6M17 4l3 3m-2-4 3 3" stroke-linecap="round"/></svg> Cambiar usuario</button>
         <button class="side-action" id="change-password-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" stroke-linecap="round"/></svg> Cambiar contraseña</button>
-        <button class="side-action" id="clear-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke-linecap="round" stroke-linejoin="round"/></svg> Ocultar conversación actual</button>
+        <button class="side-action" id="clear-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke-linecap="round" stroke-linejoin="round"/></svg> Eliminar conversación actual</button>
         <button class="side-action" id="logout-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 17l5-5-5-5M15 12H3M21 4v16" stroke-linecap="round" stroke-linejoin="round"/></svg> Cerrar sesión</button>
       </div>
       <div class="profile"><div class="profile-avatar" aria-label="Avatar de Melvis"><svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M11 9 25 18 32 16 39 18 53 9 50 29C55 37 50 49 40 53L32 57 24 53C14 49 9 37 14 29L11 9Z" fill="#E9EDF9"/><path d="M17 15 26 23 22 31 17 25M47 15 38 23 42 31 47 25" fill="#AAB7E8"/><path d="M21 34 28 31 32 35 36 31 43 34 40 43 32 48 24 43 21 34Z" fill="#35436D"/><path d="M27 37 32 40 37 37M30 44 32 46 34 44" stroke="#F4F6FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 33 26 35M43 33 38 35" stroke="#28365A" stroke-width="2.5" stroke-linecap="round"/></svg></div><div><div class="profile-title">Melvis</div><div class="profile-sub">Espacio personal</div></div></div>
@@ -329,6 +333,7 @@
     const API = {
       login: `${API_BASE}/login`,
       session: `${API_BASE}/session`,
+      identity: `${API_BASE}/account/identity`,
       logout: `${API_BASE}/logout`,
       changePassword: `${API_BASE}/change-password`,
       changeUsername: `${API_BASE}/change-username`,
@@ -346,24 +351,44 @@
       research: `${API_BASE}/tools/research`
     };
     const TOKEN_KEY = 'aranza.sessionToken.v1';
+    const ACCOUNT_ID_KEY = 'aranza.accountId.v1';
     API.researchLibrary = `${API_BASE}/research/library`;
     const $ = (id) => document.getElementById(id);
     const STORAGE_MESSAGES = 'aranza.conversationMessages.v1';
     const STORAGE_META = 'aranza.conversationMeta.v1';
-    const STORAGE_HIDDEN = 'aranza.hiddenConversations.v1';
-    const state = { conversationId: null, busy: false, conversations: [], messages: [], toastTimer: null, webSearch: false };
+    const state = { conversationId: null, accountId: null, busy: false, conversations: [], messages: [], toastTimer: null, webSearch: false, archivedView: false };
 
     function newConversationId() {
       if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return `chat_${globalThis.crypto.randomUUID()}`;
       return `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     }
+    function scopedStorageKey(key) { return `aranza.account.${encodeURIComponent(state.accountId || 'anonymous')}.${key}`; }
     function readLocal(key, fallback) {
-      try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback; }
+      try { const value = localStorage.getItem(scopedStorageKey(key)); return value ? JSON.parse(value) : fallback; }
       catch { return fallback; }
     }
     function writeLocal(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+      try { localStorage.setItem(scopedStorageKey(key), JSON.stringify(value)); return true; }
       catch { toast('El navegador no pudo guardar el historial local.'); return false; }
+    }
+    function purgeAranzaLocalData() {
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i) || '';
+          if (key.startsWith('aranza.') || key.startsWith('aranza_')) localStorage.removeItem(key);
+        }
+      } catch { /* El cierre de sesión también debe funcionar si el navegador bloquea el almacenamiento local. */ }
+    }
+    function clearLocalConversation(id) {
+      const messages = readLocal(STORAGE_MESSAGES, {}); delete messages[id]; writeLocal(STORAGE_MESSAGES, messages);
+      const metadata = readLocal(STORAGE_META, {}); delete metadata[id]; writeLocal(STORAGE_META, metadata);
+      try { localStorage.removeItem(draftStorageKey(id)); } catch {}
+    }
+    function clearBrowserSession() {
+      clearSessionToken(); try { sessionStorage.removeItem(ACCOUNT_ID_KEY); } catch {}
+      purgeAranzaLocalData(); state.accountId = null; state.conversations = []; state.messages = []; state.conversationId = null;
+      state.archivedView = false; $('history-search').value = ''; $('history-archive-toggle').textContent = 'Ver archivadas';
+      $('user-input').value = ''; $('messages').replaceChildren(); closeMemory(); closeSidebar();
     }
     function saveCurrentConversation() {
       if (!state.conversationId) return;
@@ -378,12 +403,6 @@
       };
       writeLocal(STORAGE_META, meta); updateConversationHeading();
     }
-    function hiddenConversationIds() { return new Set(readLocal(STORAGE_HIDDEN, [])); }
-    function setConversationHidden(id, hidden) {
-      const ids = hiddenConversationIds();
-      if (hidden) ids.add(String(id)); else ids.delete(String(id));
-      writeLocal(STORAGE_HIDDEN, [...ids]);
-    }
     const catAvatar = `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M13 27 11 11 25 19C29 17 35 17 39 19L53 11 51 28C55 35 53 45 46 50 38 56 25 56 17 50 10 45 8 35 13 27Z" fill="#F3A45B"/><path d="M17 28 15 17 25 23M47 28 49 17 39 23" stroke="#FFD5A9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 34C24 31 28 31 30 34M35 34C37 31 41 31 43 34" stroke="#28365A" stroke-width="2.8" stroke-linecap="round"/><path d="M30 40 33 42 36 40" stroke="#28365A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 40 9 38M19 44 10 46M45 40 55 38M45 44 54 46" stroke="#FFD5A9" stroke-width="1.8" stroke-linecap="round"/><path d="M29 47C30 50 35 50 37 47" stroke="#28365A" stroke-width="2" stroke-linecap="round"/></svg>`;
 
     const wolfAvatar = `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M11 9 25 18 32 16 39 18 53 9 50 29C55 37 50 49 40 53L32 57 24 53C14 49 9 37 14 29L11 9Z" fill="#E9EDF9"/><path d="M17 15 26 23 22 31 17 25M47 15 38 23 42 31 47 25" fill="#AAB7E8"/><path d="M21 34 28 31 32 35 36 31 43 34 40 43 32 48 24 43 21 34Z" fill="#35436D"/><path d="M27 37 32 40 37 37M30 44 32 46 34 44" stroke="#F4F6FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 33 26 35M43 33 38 35" stroke="#28365A" stroke-width="2.5" stroke-linecap="round"/></svg>`;
@@ -392,6 +411,14 @@
     function getSessionToken() { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
     function setSessionToken(token) { try { sessionStorage.setItem(TOKEN_KEY, token); } catch {} }
     function clearSessionToken() { try { sessionStorage.removeItem(TOKEN_KEY); } catch {} }
+    function getStoredAccountId() { try { return sessionStorage.getItem(ACCOUNT_ID_KEY) || null; } catch { return null; } }
+    async function loadAccountIdentity() {
+      const identity = await apiFetch(API.identity);
+      if (!identity.account_id) throw new Error('El servidor no devolvió la identidad de la cuenta.');
+      state.accountId = String(identity.account_id);
+      try { sessionStorage.setItem(ACCOUNT_ID_KEY, state.accountId); } catch {}
+      return identity;
+    }
     function showLogin(message = '') {
       $('auth-screen').classList.remove('hidden');
       $('main-app').setAttribute('aria-hidden', 'true');
@@ -410,18 +437,26 @@
       if (!response.ok) throw new Error(data.detail || 'No se pudo iniciar sesión.');
       if (!data.access_token) throw new Error('El servidor no devolvió una sesión válida.');
       setSessionToken(data.access_token);
+      try { await loadAccountIdentity(); }
+      catch (error) { clearSessionToken(); state.accountId = null; throw error; }
       return data;
     }
     async function verifySession() {
       const token = getSessionToken();
       if (!token) { showLogin(); return false; }
+      state.accountId = getStoredAccountId();
       try {
         const response = await fetch(API.session, { headers: { Authorization: `Bearer ${token}` } });
-        if (!response.ok) throw new Error('Sesión vencida');
+        if (response.status === 401) { clearBrowserSession(); showLogin('Tu sesión terminó. Ingresa tu contraseña para continuar.'); return false; }
+        if (!response.ok) throw new Error('No se pudo verificar la sesión.');
+        await loadAccountIdentity();
         showApp();
         return true;
-      } catch {
-        clearSessionToken(); showLogin('Tu sesión terminó. Ingresa tu contraseña para continuar.'); return false;
+      } catch (error) {
+        if (state.accountId) {
+          showApp(); toast('No se pudo verificar el servidor: se conservan tus datos locales y borradores.'); return true;
+        }
+        showLogin('No se pudo verificar la sesión. Comprueba la conexión e inténtalo de nuevo.'); return false;
       }
     }
     $('auth-form').addEventListener('submit', async (event) => {
@@ -464,7 +499,7 @@
       let data = {};
       try { data = raw ? JSON.parse(raw) : {}; } catch { data = { detail: raw }; }
       if (response.status === 401) {
-        clearSessionToken(); showLogin('Tu sesión expiró. Ingresa la contraseña otra vez.');
+        clearBrowserSession(); showLogin('Tu sesión expiró. Ingresa la contraseña otra vez.');
       }
       if (!response.ok) throw new Error(data.detail || data.response || `Error HTTP ${response.status}`);
       return data;
@@ -576,7 +611,7 @@
     function removeTyping() { $('typing-row')?.remove(); }
     const DRAFT_PREFIX = 'aranza_draft_v1:';
     function draftStorageKey(id = state.conversationId) {
-      const account = ($('auth-username')?.value || 'cuenta').trim().toLowerCase().slice(0, 80);
+      const account = state.accountId || 'anonymous';
       return `${DRAFT_PREFIX}${encodeURIComponent(account)}:${encodeURIComponent(String(id || 'nuevo'))}`;
     }
     function saveDraft() {
@@ -674,6 +709,7 @@
             const form = new FormData();
             form.append('file', file, file.name);
             form.append('instruction', instruction);
+            form.append('conversation_id', state.conversationId);
             const endpoint = file.type.startsWith('image/') ? API.analyzeImage : API.analyzeFile;
             const result = await apiFetch(endpoint, { method: 'POST', body: form });
             results.push(`## ${file.name}\n\n${result.response ?? result.message ?? 'Sin respuesta.'}`);
@@ -719,12 +755,29 @@
         const answer = data.response ?? data.message ?? 'La respuesta llegó vacía.';
         clearDraft();
         if (data.conversation_id) state.conversationId = data.conversation_id;
-        state.messages.push({ role: 'assistant', content: answer }); saveCurrentConversation(); appendMessage(answer, 'assistant');
+        if (files.length) {
+          if (!await syncCurrentConversationFromServer()) {
+            state.messages.push({ role: 'assistant', content: answer }); saveCurrentConversation(); appendMessage(answer, 'assistant');
+          }
+        } else {
+          state.messages.push({ role: 'assistant', content: answer }); saveCurrentConversation(); appendMessage(answer, 'assistant');
+        }
         await loadConversations(false);
       } catch (error) {
+        if (files.length) await syncCurrentConversationFromServer();
         removeTyping(); appendMessage(`No pude conectar con Aranza. ${error.message ? `Detalle: ${error.message}` : 'Revisa que FastAPI esté ejecutándose.'}`, 'assistant');
         saveCurrentConversation(); toast('No se pudo completar el mensaje.');
       } finally { setBusy(false); input.focus(); }
+    }
+    async function syncCurrentConversationFromServer() {
+      try {
+        const data = await apiFetch(`${API.conversations}/${encodeURIComponent(state.conversationId)}/messages`);
+        state.messages = (data.messages || []).filter(item => (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string');
+        $('messages').replaceChildren(); showWelcome(state.messages.length === 0);
+        state.messages.forEach(item => appendMessage(item.content, item.role, { restoring: true }));
+        saveCurrentConversation();
+        return true;
+      } catch { return false; }
     }
     function conversationIdOf(item) { return item.conversation_id ?? item.id ?? item.id_conversacion ?? item.uuid ?? null; }
     function conversationTitleOf(item) {
@@ -733,13 +786,17 @@
     }
     async function loadConversations(showToast = false) {
       try {
-        const data = await apiFetch(API.conversations);
+        const params = new URLSearchParams();
+        const query = $('history-search').value.trim();
+        if (query) params.set('q', query);
+        if (state.archivedView) params.set('archived', 'true');
+        const suffix = params.size ? `?${params.toString()}` : '';
+        const data = await apiFetch(`${API.conversations}${suffix}`);
         const serverItems = Array.isArray(data) ? data : (data.conversations ?? data.items ?? data.results ?? []);
-        const hidden = hiddenConversationIds();
-        const items = serverItems.filter(item => { const id = conversationIdOf(item); return id && !hidden.has(String(id)); });
+        const items = serverItems.filter(item => conversationIdOf(item));
         state.conversations = items;
         const list = $('history-list'); list.replaceChildren(); $('history-count').textContent = String(items.length);
-        if (!items.length) { list.innerHTML = '<div class="empty-state">Tus conversaciones aparecerán aquí.</div>'; return; }
+        if (!items.length) { list.innerHTML = `<div class="empty-state">${state.archivedView ? 'No hay conversaciones archivadas.' : (query ? 'No hay conversaciones que coincidan con la búsqueda.' : 'Tus conversaciones aparecerán aquí.')}</div>`; return; }
         const meta = readLocal(STORAGE_META, {});
         for (const item of items) {
           const id = conversationIdOf(item); if (!id) continue;
@@ -754,9 +811,11 @@
           pin.addEventListener('click', async (event) => { event.stopPropagation(); await updateConversationMetadata(id, { pinned: !Boolean(item.pinned) }); });
           const rename = document.createElement('button'); rename.className = 'history-action'; rename.type = 'button'; rename.textContent = '✎'; rename.title = 'Cambiar título'; rename.setAttribute('aria-label', 'Cambiar título');
           rename.addEventListener('click', async (event) => { event.stopPropagation(); const next = prompt('Nuevo título para esta conversación:', item.title || conversationTitleOf(item)); if (next === null) return; const clean = next.trim(); if (!clean) { toast('El título no puede estar vacío.'); return; } await updateConversationMetadata(id, { title: clean.slice(0, 80) }); });
-          const del = document.createElement('button'); del.className = 'history-delete'; del.type = 'button'; del.title = 'Ocultar del historial en este navegador'; del.setAttribute('aria-label', 'Ocultar conversación del historial'); del.textContent = '×';
-          del.addEventListener('click', async (event) => { event.stopPropagation(); await hideConversation(id); });
-          actions.append(pin, rename, del); wrap.append(button, actions); list.appendChild(wrap);
+          const archive = document.createElement('button'); archive.className = 'history-action'; archive.type = 'button'; archive.textContent = item.archived ? '↩' : '▱'; archive.title = item.archived ? 'Reactivar conversación' : 'Archivar conversación'; archive.setAttribute('aria-label', archive.title);
+          archive.addEventListener('click', async (event) => { event.stopPropagation(); await updateConversationMetadata(id, { archived: !Boolean(item.archived) }); });
+          const del = document.createElement('button'); del.className = 'history-delete'; del.type = 'button'; del.title = 'Eliminar conversación del servidor'; del.setAttribute('aria-label', 'Eliminar conversación'); del.textContent = '×';
+          del.addEventListener('click', async (event) => { event.stopPropagation(); await deleteConversation(id); });
+          actions.append(pin, rename, archive, del); wrap.append(button, actions); list.appendChild(wrap);
         }
         if (showToast) toast('Historial actualizado.');
       } catch (error) {
@@ -769,7 +828,7 @@
         await apiFetch(`${API.conversations}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(changes) });
         await loadConversations(false);
         updateConversationHeading();
-        toast(changes.title ? 'Título actualizado.' : (changes.pinned ? 'Conversación fijada.' : 'Conversación desfijada.'));
+        toast(changes.title ? 'Título actualizado.' : (changes.archived !== undefined ? (changes.archived ? 'Conversación archivada.' : 'Conversación reactivada.') : (changes.pinned ? 'Conversación fijada.' : 'Conversación desfijada.')));
       } catch (error) { toast(`No se pudo actualizar: ${error.message}`); }
     }
     async function openConversation(id) {
@@ -790,15 +849,25 @@
         if (!restored) toast(`No se pudo abrir la conversación: ${error.message}`);
       }
     }
-    async function hideConversation(id) {
-      if (!confirm('¿Ocultar esta conversación del historial de este navegador? No se borrarán los mensajes guardados en el servidor.')) return;
-      setConversationHidden(id, true);
-      if (String(state.conversationId) === String(id)) resetChat();
-      await loadConversations(false); toast('Conversación ocultada en este navegador.');
+    async function deleteConversation(id) {
+      if (!confirm('¿Eliminar permanentemente esta conversación y sus mensajes guardados en el servidor?')) return;
+      try {
+        await apiFetch(`${API.conversations}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        clearLocalConversation(String(id));
+        if (String(state.conversationId) === String(id)) resetChat();
+        await loadConversations(false); toast('Conversación eliminada.');
+      } catch (error) {
+        if (error.message === 'No se encontró esa conversación.') {
+          clearLocalConversation(String(id));
+          if (String(state.conversationId) === String(id)) resetChat();
+          await loadConversations(false); toast('Se limpió el borrador local; no había mensajes guardados en el servidor.'); return;
+        }
+        toast(`No se pudo eliminar la conversación: ${error.message}`);
+      }
     }
     async function deleteCurrentConversation() {
       if (!state.conversationId) { resetChat(); toast('Chat nuevo listo.'); return; }
-      await hideConversation(state.conversationId);
+      await deleteConversation(String(state.conversationId));
     }
     function memoryIdOf(item) { return item.id ?? item.memory_id ?? item.id_memoria ?? item.uuid ?? null; }
     function memoryTextOf(item) { return item.content ?? item.contenido ?? item.memory ?? item.text ?? item.recuerdo ?? item.value ?? JSON.stringify(item); }
@@ -1150,7 +1219,7 @@
       const token = getSessionToken();
       try { if (token) await fetch(API.logout, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }); }
       catch { /* Se limpia el token local aunque el servidor no esté disponible. */ }
-      clearSessionToken(); closeMemory(); closeSidebar(); showLogin('Sesión cerrada.');
+      clearBrowserSession(); showLogin('Sesión cerrada.');
     });
     $('change-username-btn').addEventListener('click', async () => {
       closeSidebar();
@@ -1168,7 +1237,7 @@
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.detail || 'No se pudo cambiar el usuario.');
-        clearSessionToken(); closeMemory(); showLogin(`Usuario actualizado. Inicia sesión con: ${data.username}`);
+        clearBrowserSession(); showLogin(`Usuario actualizado. Inicia sesión con: ${data.username}`);
         $('auth-username').value = data.username;
       } catch (error) { toast(error.message || 'No se pudo cambiar el usuario.'); }
     });
@@ -1190,7 +1259,7 @@
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.detail || 'No se pudo cambiar la contraseña.');
-        clearSessionToken(); closeMemory(); showLogin('Contraseña actualizada. Inicia sesión con tu contraseña nueva.');
+        clearBrowserSession(); showLogin('Contraseña actualizada. Inicia sesión con tu contraseña nueva.');
       } catch (error) { toast(error.message || 'No se pudo cambiar la contraseña.'); }
     });
     let selectedResearchId = null;
@@ -1239,6 +1308,16 @@ ${escapeHTML(item.summary || 'Sin resumen.')}</div><div class="research-detail-a
     $('memory-preview-form').addEventListener('submit', previewMemoryContext);
     $('menu-btn').addEventListener('click', openSidebar); $('sidebar-overlay').addEventListener('click', closeSidebar);
     $('refresh-history-btn').addEventListener('click', () => loadConversations(true));
+    let historySearchTimer = null;
+    $('history-search').addEventListener('input', () => {
+      clearTimeout(historySearchTimer);
+      historySearchTimer = setTimeout(() => loadConversations(false), 220);
+    });
+    $('history-archive-toggle').addEventListener('click', () => {
+      state.archivedView = !state.archivedView;
+      $('history-archive-toggle').textContent = state.archivedView ? 'Ver activas' : 'Ver archivadas';
+      loadConversations(false);
+    });
     document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => sendMessage(button.dataset.prompt)));
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMemory(); closeSidebar(); } });
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {

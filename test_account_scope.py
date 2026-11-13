@@ -51,6 +51,32 @@ def test_authenticated_account_cannot_read_or_delete_other_account_conversation(
     assert main.obtener_historial_completo(conversation_id, account_id="other-account")[0]["content"] == "secreto de otra cuenta"
 
 
+def test_authenticated_conversation_routes_search_archive_and_delete_only_own_data():
+    main.inicializar_db()
+    conversation_id = "route-mission05-shared-id"
+    main.guardar_intercambio(conversation_id, "Needle de cuenta A", "Resultado A", account_id="owner")
+    main.guardar_intercambio(conversation_id, "Dato privado B", "Resultado B", account_id="other-account")
+    headers = {"Authorization": f"Bearer {_token_for_account('owner')}"}
+
+    with TestClient(main.app) as client:
+        identity = client.get("/account/identity", headers=headers)
+        search = client.get("/conversations", params={"q": "Needle de cuenta A"}, headers=headers)
+        archive = client.patch(f"/conversations/{conversation_id}", json={"archived": True}, headers=headers)
+        active_after_archive = client.get("/conversations", headers=headers)
+        archived_after_archive = client.get("/conversations", params={"archived": True}, headers=headers)
+        delete = client.delete(f"/conversations/{conversation_id}", headers=headers)
+
+    assert identity.status_code == 200 and identity.json()["account_id"] == "owner"
+    assert [item["conversation_id"] for item in search.json()["conversations"]] == [conversation_id]
+    assert archive.status_code == 200, archive.text
+    assert all(item["conversation_id"] != conversation_id for item in active_after_archive.json()["conversations"])
+    archived_item = next(item for item in archived_after_archive.json()["conversations"] if item["conversation_id"] == conversation_id)
+    assert archived_item["archived"] == 1
+    assert delete.status_code == 200 and delete.json()["deleted"] is True
+    assert main.obtener_historial_completo(conversation_id, account_id="owner") == []
+    assert main.obtener_historial_completo(conversation_id, account_id="other-account")[0]["content"] == "Dato privado B"
+
+
 def test_legacy_schema_migrates_without_losing_rows(tmp_path, monkeypatch):
     legacy_db = tmp_path / "legacy.sqlite3"
     with sqlite3.connect(legacy_db) as conn:
@@ -60,8 +86,11 @@ def test_legacy_schema_migrates_without_losing_rows(tmp_path, monkeypatch):
         conn.execute("INSERT INTO memorias(category, content) VALUES ('nota', 'recuerdo antiguo')")
     monkeypatch.setattr(main, "DATABASE_PATH", str(legacy_db))
     main.inicializar_db()
+    main.listar_conversaciones("owner")
     with sqlite3.connect(legacy_db) as conn:
         message = conn.execute("SELECT account_id, content FROM mensajes WHERE conversation_id='old-chat'").fetchone()
         memory = conn.execute("SELECT account_id, category, content FROM memorias").fetchone()
+        archived = conn.execute("SELECT archived FROM conversaciones WHERE account_id='owner' AND conversation_id='old-chat'").fetchone()
     assert message == ("owner", "preservar esto")
     assert memory == ("owner", "nota", "recuerdo antiguo")
+    assert archived == (0,)

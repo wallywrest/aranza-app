@@ -22,6 +22,7 @@ def test_export_requires_authentication():
 
 
 def test_authenticated_export_contains_messages_and_memories():
+    main.inicializar_db()
     main.guardar_intercambio("chat_export_test", "hola", "qué tal")
     memory_id = main.guardar_memoria("prefiere respuestas en español", "preferencia")
     saved_memory = next(item for item in main.obtener_memorias() if item["id"] == memory_id)
@@ -43,6 +44,8 @@ def test_authenticated_export_contains_messages_and_memories():
     assert "investigation_history" in data
     assert any(item["content"] == "hola" for item in data["conversations"])
     assert any(item["content"] == "prefiere respuestas en español" for item in data["memories"])
+    metadata = next(item for item in data["conversation_metadata"] if item["conversation_id"] == "chat_export_test")
+    assert metadata["archived"] == 0
 
 
 def test_exchange_is_saved_as_two_ordered_rows():
@@ -119,6 +122,7 @@ def test_export_includes_account_profile_research_and_memory_state_without_crede
 
     conversation_id = f"export-conversation-{suffix}"
     main.guardar_intercambio(conversation_id, "synthetic question", "synthetic answer", account_id=account_id)
+    assert main.actualizar_metadatos_conversacion(conversation_id, account_id=account_id, archived=True)
     main.guardar_perfil_cuenta(account_id, {
         "comunicacion_observada": ["synthetic profile marker"],
     })
@@ -172,6 +176,8 @@ def test_export_includes_account_profile_research_and_memory_state_without_crede
     assert any(item["id"] == memory_id and item["status"] == "active" for item in data["memories"])
     assert data["memory_history"][0]["content"] == "synthetic prior memory"
     assert data["memory_review_decisions"][0]["candidate_content"] == "synthetic candidate"
+    metadata = next(item for item in data["conversation_metadata"] if item["conversation_id"] == conversation_id)
+    assert metadata["archived"] == 1
     exported = {item["id"]: item for item in data["investigations"]}
     assert set(exported) == {own_research_id, related_research_id}
     assert exported[own_research_id]["sources"][0]["title"] == "synthetic source"
