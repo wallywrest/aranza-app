@@ -23,4 +23,6 @@ La personalización afecta la conversación, no autoriza acciones externas. No s
 
 - Pruebas de regresión añadidas para aislamiento por cuenta, integración con el prompt, validación de campos, exportación y borrado de datos.
 - Sintaxis de Python y JavaScript: aprobada localmente.
-- CI de Python 3.11 en Windows y Ubuntu: pendiente de esta publicación.
+- CI de Python 3.11 en Ubuntu: 370 pruebas aprobadas; 1 advertencia.
+- CI de Python 3.11 en Windows: 370 pruebas aprobadas; 1 advertencia.
+- Ejecución: https://github.com/wallywrest/aranza-app/actions/runs/43381973079
