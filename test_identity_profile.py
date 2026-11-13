@@ -72,21 +72,26 @@ def test_account_data_deletion_clears_profile_and_revokes_sessions():
     account_id, username, password = _create_test_account()
     token = main.crear_token_sesion(account_id)
     profile = {"comunicacion_observada": ["synthetic profile to erase"]}
+    personality = {"description": "synthetic personality to erase", "tone": "directa"}
 
     with TestClient(main.app) as client:
         headers = {"Authorization": f"Bearer {token}"}
         assert client.put("/profile", headers=headers, json=profile).status_code == 200
+        assert client.put("/assistant-personality", headers=headers, json=personality).status_code == 200
         response = client.request("DELETE", "/account/data", headers=headers, json={
             "current_password": password,
             "confirmation": "ELIMINAR MIS DATOS",
         })
         assert response.status_code == 200
         assert response.json()["deleted_counts"]["profile_reset"] == 1
+        assert response.json()["deleted_counts"]["assistant_personality_reset"] == 1
         assert client.get("/profile", headers=headers).status_code == 401
         login = client.post("/login", json={"username": username, "password": password})
         assert login.status_code == 200
         new_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
         main.inicializar_db()
         reset_profile = client.get("/profile", headers=new_headers).json()["profile"]
+        reset_personality = client.get("/assistant-personality", headers=new_headers).json()["personality"]
 
     assert all(values == [] for values in reset_profile.values())
+    assert reset_personality == main.PERSONALIDAD_ARANZA_POR_DEFECTO

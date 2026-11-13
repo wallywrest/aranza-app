@@ -12,7 +12,7 @@ from collections import defaultdict, deque
 from threading import Lock
 from pathlib import Path
 from uuid import uuid4
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Literal
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -28,6 +28,11 @@ from lector_web import leer_pagina
 from evaluacion_fuentes import evaluar_fuentes
 from herramientas import validate_tool_request, ToolInputError, list_tool_contracts
 from conocimiento import rank_research
+from personalidad import (
+    PERSONALIDAD_ARANZA_POR_DEFECTO,
+    construir_instrucciones_personalidad_aranza,
+    normalizar_personalidad_aranza,
+)
 
 # ============================================================
 # 1. CONFIGURACIÓN GENERAL
@@ -242,13 +247,17 @@ def construir_prompt(memorias, account_id="owner"):
         for item in memorias
     ) or "- No hay recuerdos personales guardados."
 
-    return INSTRUCCIONES_SISTEMA.format(
+    prompt_base = INSTRUCCIONES_SISTEMA.format(
         comunicacion=comunicacion,
         interaccion=interaccion,
         contexto=contexto,
         desconocido=desconocido,
         memorias=bloque_memorias
     )
+    preferencias = construir_instrucciones_personalidad_aranza(
+        obtener_personalidad_aranza(account_id)
+    )
+    return f"{prompt_base}\n\n{preferencias}" if preferencias else prompt_base
 
 
 # ============================================================
@@ -455,6 +464,11 @@ def inicializar_db():
             profile_json TEXT NOT NULL DEFAULT '{}',
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS personalidad_aranza (
+            account_id TEXT PRIMARY KEY,
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""")
 
         # El secreto de entorno solo inicializa la primera cuenta. Nunca se vuelve
         # a copiar sobre una cuenta existente, o un cambio de contraseña desaparecería
@@ -528,6 +542,37 @@ def guardar_perfil_cuenta(account_id, perfil):
                VALUES(?, ?, CURRENT_TIMESTAMP)
                ON CONFLICT(account_id) DO UPDATE SET
                    profile_json=excluded.profile_json,
+                   updated_at=CURRENT_TIMESTAMP""",
+            (account_id, encoded),
+        )
+    return normalized
+
+
+def obtener_personalidad_aranza(account_id):
+    with conectar_db() as conn:
+        row = conn.execute(
+            "SELECT settings_json FROM personalidad_aranza WHERE account_id = ?",
+            (account_id,),
+        ).fetchone()
+    if not row:
+        return normalizar_personalidad_aranza(PERSONALIDAD_ARANZA_POR_DEFECTO)
+    try:
+        stored = json.loads(row["settings_json"])
+    except (TypeError, json.JSONDecodeError):
+        logger.warning("No se pudo interpretar la personalidad de Aranza para una cuenta.")
+        stored = {}
+    return normalizar_personalidad_aranza(stored)
+
+
+def guardar_personalidad_aranza(account_id, personalidad):
+    normalized = normalizar_personalidad_aranza(personalidad)
+    encoded = json.dumps(normalized, ensure_ascii=False)
+    with conectar_db() as conn:
+        conn.execute(
+            """INSERT INTO personalidad_aranza(account_id, settings_json, updated_at)
+               VALUES(?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(account_id) DO UPDATE SET
+                   settings_json=excluded.settings_json,
                    updated_at=CURRENT_TIMESTAMP""",
             (account_id, encoded),
         )
@@ -1073,6 +1118,14 @@ class UserProfileRequest(BaseModel):
     aspectos_desconocidos: list[ProfileEntry] = Field(default_factory=list, max_length=20)
 
 
+class AranzaPersonalityRequest(BaseModel):
+    description: str = Field(default="", max_length=2000)
+    tone: Literal["natural", "cercana", "serena", "directa"] = "natural"
+    humor: Literal["contextual", "menos", "mas"] = "contextual"
+    initiative: Literal["balanced", "proactive", "discreet"] = "balanced"
+    detail: Literal["adaptive", "brief", "detailed"] = "adaptive"
+
+
 class MemoryReviewDecisionRequest(BaseModel):
     memory_id: int = Field(ge=1)
     decision: str = Field(min_length=1, max_length=30)
@@ -1293,6 +1346,23 @@ async def leer_perfil_cuenta(principal: dict = Depends(verificar_acceso)):
 async def actualizar_perfil_cuenta(body: UserProfileRequest, principal: dict = Depends(verificar_acceso)):
     perfil = guardar_perfil_cuenta(principal["account_id"], body.model_dump())
     return {"updated": True, "profile": perfil}
+
+
+@app.get("/assistant-personality")
+async def leer_personalidad_aranza(principal: dict = Depends(verificar_acceso)):
+    return {"personality": obtener_personalidad_aranza(principal["account_id"])}
+
+
+@app.put("/assistant-personality")
+async def actualizar_personalidad_aranza(
+    body: AranzaPersonalityRequest,
+    principal: dict = Depends(verificar_acceso),
+):
+    personality = guardar_personalidad_aranza(
+        principal["account_id"],
+        body.model_dump(),
+    )
+    return {"updated": True, "personality": personality}
 
 
 @app.post("/change-password")
@@ -2674,11 +2744,12 @@ async def exportar_datos(principal: dict = Depends(verificar_acceso)):
         versiones_investigacion.append(item)
 
     payload = {
-        "format": "aranza-export-v3",
+        "format": "aranza-export-v4",
         "exported_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "scope": "authenticated-account",
         "account": {"username": account["username"] if account else None},
         "profile": obtener_perfil_cuenta(account_id),
+        "assistant_personality": obtener_personalidad_aranza(account_id),
         "conversations": [dict(row) for row in conversaciones],
         "conversation_metadata": [dict(row) for row in metadatos],
         "memories": [dict(row) for row in memorias],
@@ -2719,6 +2790,14 @@ async def eliminar_datos_personales(body: DeletePersonalDataRequest, principal: 
                             updated_at=CURRENT_TIMESTAMP""",
                      (account_id, empty_profile))
         counts["profile_reset"] = 1
+        empty_personality = json.dumps(PERSONALIDAD_ARANZA_POR_DEFECTO, ensure_ascii=False)
+        conn.execute("""INSERT INTO personalidad_aranza(account_id, settings_json, updated_at)
+                        VALUES(?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(account_id) DO UPDATE SET
+                            settings_json=excluded.settings_json,
+                            updated_at=CURRENT_TIMESTAMP""",
+                     (account_id, empty_personality))
+        counts["assistant_personality_reset"] = 1
         sessions = conn.execute("DELETE FROM sesiones WHERE account_id = ?", (account_id,))
         counts["sesiones_revocadas"] = sessions.rowcount
     return {"deleted": True, "account_preserved": True, "sessions_revoked": counts["sesiones_revocadas"], "deleted_counts": counts}

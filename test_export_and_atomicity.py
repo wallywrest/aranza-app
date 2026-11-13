@@ -34,11 +34,12 @@ def test_authenticated_export_contains_messages_and_memories():
     assert response.status_code == 200
     assert "attachment; filename=\"aranza-export.json\"" == response.headers.get("content-disposition")
     data = response.json()
-    assert data["format"] == "aranza-export-v3"
+    assert data["format"] == "aranza-export-v4"
     assert "conversation_metadata" in data
     assert "memory_history" in data
     assert "memory_review_decisions" in data
     assert "profile" in data
+    assert data["assistant_personality"]["tone"] == "natural"
     assert "investigations" in data
     assert "investigation_relations" in data
     assert "investigation_history" in data
@@ -126,6 +127,10 @@ def test_export_includes_account_profile_research_and_memory_state_without_crede
     main.guardar_perfil_cuenta(account_id, {
         "comunicacion_observada": ["synthetic profile marker"],
     })
+    main.guardar_personalidad_aranza(account_id, {
+        "description": "synthetic personality marker",
+        "tone": "cercana",
+    })
     memory_id = main.guardar_memoria("synthetic memory marker", "test", account_id=account_id)
     own_research_id = f"research-own-{suffix}"
     related_research_id = f"research-related-{suffix}"
@@ -170,9 +175,11 @@ def test_export_includes_account_profile_research_and_memory_state_without_crede
         response = client.get("/export", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     data = response.json()
-    assert data["format"] == "aranza-export-v3"
+    assert data["format"] == "aranza-export-v4"
     assert data["account"] == {"username": username}
     assert data["profile"]["comunicacion_observada"] == ["synthetic profile marker"]
+    assert data["assistant_personality"]["description"] == "synthetic personality marker"
+    assert data["assistant_personality"]["tone"] == "cercana"
     assert any(item["id"] == memory_id and item["status"] == "active" for item in data["memories"])
     assert data["memory_history"][0]["content"] == "synthetic prior memory"
     assert data["memory_review_decisions"][0]["candidate_content"] == "synthetic candidate"

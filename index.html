@@ -162,6 +162,16 @@
     .memory-preview p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
     .memory-preview textarea { resize: vertical; min-height: 58px; max-height: 120px; background: #0b1325; border: 1px solid var(--line); border-radius: 11px; padding: 10px 11px; color: white; font: inherit; font-size: 12px; }
     .memory-preview button { min-height: 34px; }
+    .identity-form { flex: 1; overflow: auto; padding: 17px; display: flex; flex-direction: column; gap: 14px; }
+    .identity-intro { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .identity-field { display: flex; flex-direction: column; gap: 7px; }
+    .identity-field label { color: #e4eaff; font-size: 11px; font-weight: 600; }
+    .identity-field small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .identity-field textarea, .identity-field select { width: 100%; background: #0b1325; border: 1px solid var(--line); border-radius: 11px; padding: 10px 11px; color: white; font: inherit; font-size: 12px; }
+    .identity-field textarea { resize: vertical; min-height: 105px; max-height: 260px; line-height: 1.5; }
+    .identity-field select { min-height: 38px; }
+    .identity-actions { display: flex; gap: 8px; margin-top: auto; }
+    .identity-actions button { min-height: 38px; flex: 1; }
     .memory-preview-result { border-bottom: 1px solid var(--line); padding: 0 14px; }
     .memory-preview-result .memory-item { margin: 9px 0; }
     .memory-tools { display:flex; gap:8px; padding:10px 17px; border-bottom:1px solid var(--line); }.memory-tools select { flex:1; min-width:0; background:#0b1325; border:1px solid var(--line); border-radius:10px; padding:9px; color:white; font-size:12px; }.memory-clear { border:1px solid rgba(255,146,146,.35); border-radius:10px; background:transparent; color:#ffaaaa; padding:0 10px; font-size:11px; cursor:pointer; }.memory-category { display:block; color:#9eafff; font-size:10px; margin-bottom:4px; text-transform:uppercase; letter-spacing:.06em; }.memory-list { padding: 14px; overflow: auto; display: flex; flex-direction: column; gap: 9px; }
@@ -252,6 +262,7 @@
       <div class="sidebar-bottom">
         <button class="side-action" id="research-library-btn"><span aria-hidden="true">▤</span> Biblioteca de investigaciones</button>
         <button class="side-action" id="memory-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v18M5 7h14M5 17h14M7 3v4m10-4v4M7 17v4m10-4v4" stroke-linecap="round"/><circle cx="12" cy="12" r="2.5"/></svg> Memoria de Aranza</button>
+        <button class="side-action" id="personality-open-btn"><span aria-hidden="true">✦</span> Personalidad de Aranza</button>
         <button class="side-action" id="change-username-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M5 20c.8-4 3-6 7-6s6.2 2 7 6M17 4l3 3m-2-4 3 3" stroke-linecap="round"/></svg> Cambiar usuario</button>
         <button class="side-action" id="change-password-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" stroke-linecap="round"/></svg> Cambiar contraseña</button>
         <button class="side-action" id="clear-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" stroke-linecap="round" stroke-linejoin="round"/></svg> Eliminar conversación actual</button>
@@ -322,6 +333,18 @@
     <div class="memory-preview-result" id="memory-review-log" aria-live="polite"></div>
     <div class="memory-list" id="memory-list"><div class="empty-state">Cargando recuerdos...</div></div>
   </aside>
+  <aside class="memory-panel" id="personality-panel" aria-label="Personalidad de Aranza" aria-hidden="true">
+    <div class="panel-head"><div><h2>Personalidad de Aranza</h2><p>Preferencias propias de Aranza, separadas de tu perfil y tus recuerdos.</p></div><button class="icon-btn" id="personality-close-btn" aria-label="Cerrar personalización">✕</button></div>
+    <form class="identity-form" id="personality-form">
+      <p class="identity-intro">Personaliza cómo se expresa y toma iniciativa en la conversación. La base actual se conserva al elegir “Como ahora”. Estas preferencias no otorgan permisos para usar herramientas o actuar fuera del chat.</p>
+      <div class="identity-field"><label for="personality-description">Cómo describes a Aranza</label><textarea id="personality-description" maxlength="2000" placeholder="Escribe qué rasgos quieres que definan su personalidad..."></textarea><small id="personality-description-count">0 / 2000</small></div>
+      <div class="identity-field"><label for="personality-tone">Tono</label><select id="personality-tone"><option value="natural">Como ahora: natural</option><option value="cercana">Más cercana y cálida</option><option value="serena">Serena y paciente</option><option value="directa">Directa y clara</option></select></div>
+      <div class="identity-field"><label for="personality-humor">Humor</label><select id="personality-humor"><option value="contextual">Como ahora: cuando encaje</option><option value="menos">Menos humor</option><option value="mas">Más humor ligero</option></select></div>
+      <div class="identity-field"><label for="personality-initiative">Iniciativa en la conversación</label><select id="personality-initiative"><option value="balanced">Como ahora: equilibrada</option><option value="proactive">Sugerir próximos pasos útiles</option><option value="discreet">Esperar más a que yo lo pida</option></select><small>La iniciativa conversacional no permite ejecutar acciones externas sin el permiso correspondiente.</small></div>
+      <div class="identity-field"><label for="personality-detail">Nivel de detalle</label><select id="personality-detail"><option value="adaptive">Como ahora: adaptativo</option><option value="brief">Más breve</option><option value="detailed">Más detallada</option></select></div>
+      <div class="identity-actions"><button class="small-primary" type="submit" id="personality-save-btn">Guardar personalidad</button><button class="memory-clear" type="button" id="personality-reset-btn">Restablecer</button></div>
+    </form>
+  </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
@@ -331,6 +354,7 @@
     // con la URL pública del backend ANTES de este script.
     const API_BASE = String(window.ARANZA_API_BASE || window.location.origin).replace(/\/+$/, '');
     const API = {
+      assistantPersonality: `${API_BASE}/assistant-personality`,
       login: `${API_BASE}/login`,
       session: `${API_BASE}/session`,
       identity: `${API_BASE}/account/identity`,
@@ -356,6 +380,7 @@
     const $ = (id) => document.getElementById(id);
     const STORAGE_MESSAGES = 'aranza.conversationMessages.v1';
     const STORAGE_META = 'aranza.conversationMeta.v1';
+    const DEFAULT_ARANZA_PERSONALITY = Object.freeze({ description: '', tone: 'natural', humor: 'contextual', initiative: 'balanced', detail: 'adaptive' });
     const state = { conversationId: null, accountId: null, busy: false, conversations: [], messages: [], toastTimer: null, webSearch: false, archivedView: false };
 
     function newConversationId() {
@@ -388,7 +413,7 @@
       clearSessionToken(); try { sessionStorage.removeItem(ACCOUNT_ID_KEY); } catch {}
       purgeAranzaLocalData(); state.accountId = null; state.conversations = []; state.messages = []; state.conversationId = null;
       state.archivedView = false; $('history-search').value = ''; $('history-archive-toggle').textContent = 'Ver archivadas';
-      $('user-input').value = ''; $('messages').replaceChildren(); closeMemory(); closeSidebar();
+      $('user-input').value = ''; $('messages').replaceChildren(); setPersonalityForm(DEFAULT_ARANZA_PERSONALITY); closeMemory(); closePersonality(); closeSidebar();
     }
     function saveCurrentConversation() {
       if (!state.conversationId) return;
@@ -1142,8 +1167,60 @@
       try { await apiFetch(API.memory, { method: 'DELETE' }); cachedMemories = []; renderMemories(); $('memory-preview-result').replaceChildren(); toast('Memoria borrada.'); }
       catch (error) { toast(`No se pudo borrar la memoria: ${error.message}`); }
     }
-    function openMemory() { $('memory-panel').classList.add('open'); $('panel-backdrop').classList.add('open'); $('memory-panel').setAttribute('aria-hidden', 'false'); loadMemories(); closeSidebar(); }
-    function closeMemory() { $('memory-panel').classList.remove('open'); $('panel-backdrop').classList.remove('open'); $('memory-panel').setAttribute('aria-hidden', 'true'); }
+    function openMemory() { closePersonality(); $('memory-panel').classList.add('open'); $('panel-backdrop').classList.add('open'); $('memory-panel').setAttribute('aria-hidden', 'false'); loadMemories(); closeSidebar(); }
+    function closeMemory() { $('memory-panel').classList.remove('open'); $('memory-panel').setAttribute('aria-hidden', 'true'); if (!$('personality-panel').classList.contains('open')) $('panel-backdrop').classList.remove('open'); }
+    function setPersonalityForm(settings) {
+      const value = { ...DEFAULT_ARANZA_PERSONALITY, ...(settings || {}) };
+      $('personality-description').value = value.description || '';
+      $('personality-tone').value = value.tone;
+      $('personality-humor').value = value.humor;
+      $('personality-initiative').value = value.initiative;
+      $('personality-detail').value = value.detail;
+      $('personality-description-count').textContent = `${$('personality-description').value.length} / 2000`;
+    }
+    async function loadPersonalityForm() {
+      try {
+        const data = await apiFetch(API.assistantPersonality);
+        setPersonalityForm(data.personality);
+      } catch (error) { toast(`No se pudo cargar la personalidad: ${error.message}`); }
+    }
+    function openPersonality() {
+      closeMemory();
+      setPersonalityForm(DEFAULT_ARANZA_PERSONALITY);
+      $('personality-panel').classList.add('open');
+      $('personality-panel').setAttribute('aria-hidden', 'false');
+      $('panel-backdrop').classList.add('open');
+      closeSidebar();
+      loadPersonalityForm();
+    }
+    function closePersonality() {
+      $('personality-panel').classList.remove('open');
+      $('personality-panel').setAttribute('aria-hidden', 'true');
+      if (!$('memory-panel').classList.contains('open')) $('panel-backdrop').classList.remove('open');
+    }
+    async function savePersonality(settings, successMessage = 'Personalidad de Aranza guardada.') {
+      const button = $('personality-save-btn');
+      button.disabled = true;
+      try {
+        const data = await apiFetch(API.assistantPersonality, { method: 'PUT', body: JSON.stringify(settings) });
+        setPersonalityForm(data.personality);
+        toast(successMessage);
+      } catch (error) { toast(`No se pudo guardar: ${error.message}`); }
+      finally { button.disabled = false; }
+    }
+    function personalityFormValue() {
+      return {
+        description: $('personality-description').value,
+        tone: $('personality-tone').value,
+        humor: $('personality-humor').value,
+        initiative: $('personality-initiative').value,
+        detail: $('personality-detail').value,
+      };
+    }
+    async function resetPersonality() {
+      if (!confirm('¿Restablecer la personalidad de Aranza a su comportamiento actual?')) return;
+      await savePersonality({ ...DEFAULT_ARANZA_PERSONALITY }, 'Personalidad restablecida al estilo actual de Aranza.');
+    }
     function openSidebar() { $('sidebar').classList.add('open'); $('sidebar-overlay').classList.add('open'); }
     function closeSidebar() { $('sidebar').classList.remove('open'); $('sidebar-overlay').classList.remove('open'); }
 
@@ -1301,7 +1378,13 @@ ${escapeHTML(item.summary || 'Sin resumen.')}</div><div class="research-detail-a
     $('research-library-refresh').addEventListener('click', () => { selectedResearchId=null; loadResearchLibrary($('research-library-query').value); });
     $('research-library-query').addEventListener('keydown', event => { if (event.key === 'Enter') { selectedResearchId=null; loadResearchLibrary(event.target.value); } });
     $('memory-open-btn').addEventListener('click', openMemory); $('top-memory-btn').addEventListener('click', openMemory);
-    $('memory-close-btn').addEventListener('click', closeMemory); $('panel-backdrop').addEventListener('click', closeMemory);
+    $('memory-close-btn').addEventListener('click', closeMemory);
+    $('personality-open-btn').addEventListener('click', openPersonality);
+    $('personality-close-btn').addEventListener('click', closePersonality);
+    $('panel-backdrop').addEventListener('click', () => { closeMemory(); closePersonality(); });
+    $('personality-form').addEventListener('submit', event => { event.preventDefault(); savePersonality(personalityFormValue()); });
+    $('personality-description').addEventListener('input', event => { $('personality-description-count').textContent = `${event.target.value.length} / 2000`; });
+    $('personality-reset-btn').addEventListener('click', resetPersonality);
     $('memory-form').addEventListener('submit', addMemory);
     $('memory-filter').addEventListener('change', renderMemories);
     $('memory-clear-btn').addEventListener('click', clearAllMemories); $('memory-audit-btn').addEventListener('click', auditMemories);
@@ -1319,7 +1402,7 @@ ${escapeHTML(item.summary || 'Sin resumen.')}</div><div class="research-detail-a
       loadConversations(false);
     });
     document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => sendMessage(button.dataset.prompt)));
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMemory(); closeSidebar(); } });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeMemory(); closePersonality(); closeSidebar(); } });
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
     }
